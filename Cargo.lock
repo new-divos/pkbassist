@@ -225,12 +225,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "lazy_static"
-version = "1.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
-
-[[package]]
 name = "libc"
 version = "0.2.126"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -281,7 +275,7 @@ dependencies = [
  "env_logger",
  "futures",
  "log",
- "regexp",
+ "regex",
  "thiserror",
  "tokio",
  "walkdir",
@@ -411,16 +405,6 @@ name = "regex-syntax"
 version = "0.6.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a3f87b73ce11b1619a3c6332f45341e0047173771e8b8b73f87bfeefb7b56244"
-
-[[package]]
-name = "regexp"
-version = "0.3.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9b045baed9fc5b2e285a599a42fb158bc483e1b6104de3a93d24bf4addd4727e"
-dependencies = [
- "lazy_static",
- "regex",
-]
 
 [[package]]
 name = "same-file"

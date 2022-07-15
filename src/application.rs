@@ -1,11 +1,15 @@
-use std::{ffi::OsStr, path};
+use std::{ffi::OsStr, iter::repeat_with, sync::Arc};
 
 use futures::future::join_all;
-use tokio::{fs::File, io::AsyncReadExt};
+use regex::Regex;
+use tokio::{
+    fs::File,
+    io::{AsyncReadExt, AsyncWriteExt},
+};
 use walkdir::WalkDir;
 
 use crate::{
-    config::{Arguments, Config},
+    config::{Arguments, Command, Config},
     error::Error,
 };
 
@@ -30,7 +34,7 @@ impl Application {
     ///
     pub async fn run(&self, args: &Arguments) -> Result<(), Error> {
         match args.command {
-            crate::config::Command::Repair { wiki_refs } => {
+            Command::Repair { wiki_refs } => {
                 if wiki_refs {
                     self.repair_wiki_refs().await?;
                 }
@@ -44,12 +48,35 @@ impl Application {
     /// Repair wiki references.
     ///
     async fn repair_wiki_refs(&self) -> Result<(), Error> {
+        let re = Arc::new(
+            Regex::new(
+                r"\[\[\s*(?P<file>[A-Za-z\d\-\.]+(?:\s+[\w\d\-_\.\(\)]+)*)\s*\|\s+(?P<descr>.[^\[\]]+)\s*?\]\]",
+            )
+            .unwrap(),
+        );
         let errors: Vec<_> = join_all(
             WalkDir::new(self.config.root())
                 .into_iter()
                 .filter_map(|e| e.ok())
                 .filter(|e| e.path().extension().and_then(OsStr::to_str) == Some("md"))
-                .map(|e| self.repair_file_wiki_refs(path::PathBuf::from(e.path()))),
+                .zip(repeat_with(|| re.clone()))
+                .map(|(e, re)| async move {
+                    log::info!("Start processing of the file \"{}\"", e.path().display());
+                    let mut buffer = String::new();
+                    {
+                        let mut file = File::open(e.path()).await?;
+                        file.read_to_string(&mut buffer).await?;
+                    }
+
+                    let content = re.replace_all(&buffer, "[[$file|$descr]]");
+                    {
+                        let mut file = File::create(e.path()).await?;
+                        file.write_all(content.as_bytes()).await?;
+                    }
+
+                    log::info!("Finish processing of the file \"{}\"", e.path().display());
+                    Ok(())
+                }),
         )
         .await
         .into_iter()
@@ -61,20 +88,5 @@ impl Application {
         } else {
             Err(Error::MultipleExecutorsError(errors))
         }
-    }
-
-    ///
-    /// Repair file wiki references.
-    ///
-    async fn repair_file_wiki_refs(&self, path: path::PathBuf) -> Result<(), Error> {
-        log::info!("Start processing of the file \"{}\"", path.display());
-        let mut buffer = String::new();
-        {
-            let mut file = File::open(path.as_path()).await?;
-            file.read_to_string(&mut buffer).await?;
-        }
-
-        log::info!("Finish processing of the file \"{}\"", path.display());
-        Ok(())
     }
 }
