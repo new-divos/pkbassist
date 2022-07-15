@@ -1,5 +1,5 @@
 [package]
-name = "notes-attendant"
+name = "nta"
 version = "0.1.0"
 edition = "2021"
 authors = ["Roman A. Voronkin"]

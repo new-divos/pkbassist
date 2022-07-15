@@ -268,7 +268,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "notes-attendant"
+name = "nta"
 version = "0.1.0"
 dependencies = [
  "clap",

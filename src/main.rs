@@ -1,6 +1,6 @@
 use clap::Parser;
 
-use notes_attendant::{
+use nta::{
     application::Application,
     config::{Arguments, Config},
 };
