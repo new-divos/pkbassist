@@ -10,8 +10,10 @@ clap = {version = "^3.2", features = ["derive"]}
 env_logger = {version = "^0.9"}
 futures = {version = "^0.3"}
 log = {version = "^0.4"}
+prettytable-rs = {version = "^0.8"}
 regex = {version = "^1.6"}
 reqwest = {version = "^0.11", features = ["json"]}
+scraper = {version = "^0.13"}
 serde = {version="^1", features = ["derive"]}
 thiserror = {version = "^1"}
 tokio = {version = "^1.18", features = ["full"]}

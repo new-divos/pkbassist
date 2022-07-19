@@ -1,6 +1,7 @@
 use std::{ffi::OsStr, io::Cursor, iter::repeat_with, path::PathBuf, sync::Arc};
 
 use futures::future::join_all;
+use prettytable::{cell, row, Table};
 use regex::Regex;
 use tokio::{
     fs::File,
@@ -11,11 +12,12 @@ use uuid::Uuid;
 use walkdir::WalkDir;
 
 use crate::{
-    config::{Arguments, Command, Config, GrabNote},
+    config::{Arguments, Command, Config, Info, Note},
     error::Error,
 };
 
-pub(crate) mod grab;
+pub(crate) mod apod;
+pub(crate) mod twir;
 
 ///
 /// The command line application.
@@ -48,7 +50,13 @@ impl Application {
             // Grab note into notes set.
             Command::Grab { ref note } => match note {
                 // Grab NASA Astronomy Picture of the Day.
-                GrabNote::APoD { update_daily } => self.grab_apod(*update_daily).await?,
+                Note::APoD { update_daily } => self.grab_apod(*update_daily).await?,
+            },
+
+            // Show additional information.
+            Command::Show { ref info } => match info {
+                // Show This Week in Rust issues.
+                Info::TWiR { last } => self.show_twir(*last).await?,
             },
         }
 
@@ -110,7 +118,7 @@ impl Application {
 
         let response = reqwest::get(url)
             .await?
-            .json::<grab::APoDAPIResponse>()
+            .json::<apod::APoDAPIResponse>()
             .await?;
 
         let root_path = self.config.root();
@@ -121,7 +129,7 @@ impl Application {
 
         let media_ref: String;
         match response.media_type() {
-            grab::APoDAPIMediaType::Image => {
+            apod::APoDAPIMediaType::Image => {
                 let image_url = Url::parse(response.url())?;
                 let image_path = PathBuf::from(
                     image_url
@@ -157,7 +165,7 @@ impl Application {
                 );
             }
 
-            grab::APoDAPIMediaType::Video => {
+            apod::APoDAPIMediaType::Video => {
                 let src = format!("src=\"{}\"", response.url());
                 media_ref = vec![
                     "<iframe width=\"100%\" height=\"450\"",
@@ -171,7 +179,7 @@ impl Application {
                 .join(" ");
             }
 
-            grab::APoDAPIMediaType::Unknown => {
+            apod::APoDAPIMediaType::Unknown => {
                 return Err(Error::UnknownMediaType);
             }
         }
@@ -230,6 +238,34 @@ impl Application {
                 );
             }
         }
+
+        Ok(())
+    }
+
+    ///
+    /// Show This Week in Rust issues.
+    ///
+    async fn show_twir(&self, last: bool) -> Result<(), Error> {
+        let mut issues = twir::TWiRIssue::select().await?;
+        if last {
+            issues = issues.into_iter().take(1).collect();
+        }
+
+        // Create the table.
+        let mut table = Table::new();
+        table.set_format(*prettytable::format::consts::FORMAT_NO_LINESEP_WITH_TITLE);
+
+        table.set_titles(row!["Date", "Title", "URL"]);
+        for issue in &issues {
+            table.add_row(row![
+                issue.datetime().format("%Y-%m-%d"),
+                issue.title(),
+                issue.url()
+            ]);
+        }
+
+        // Print the table to stdout
+        table.printstd();
 
         Ok(())
     }

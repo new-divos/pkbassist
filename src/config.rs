@@ -45,7 +45,15 @@ pub enum Command {
     ///
     Grab {
         #[clap(subcommand)]
-        note: GrabNote,
+        note: Note,
+    },
+
+    ///
+    /// Show the additional information.
+    ///
+    Show {
+        #[clap(subcommand)]
+        info: Info,
     },
 }
 
@@ -54,7 +62,7 @@ pub enum Command {
 ///
 #[derive(Debug, Subcommand)]
 #[non_exhaustive]
-pub enum GrabNote {
+pub enum Note {
     ///
     /// Grab NASA Astronomy Picture of the Day to the notes set.
     ///
@@ -70,6 +78,25 @@ pub enum GrabNote {
             takes_value = false
         )]
         update_daily: bool,
+    },
+}
+
+///
+/// The application show command object.
+///
+#[derive(Debug, Subcommand)]
+#[non_exhaustive]
+pub enum Info {
+    ///
+    /// Show This Week in Rust issues.
+    ///
+    #[clap(name = "twir")]
+    TWiR {
+        ///
+        /// Show only the last issue.
+        ///
+        #[clap(short = 'l', long = "last", required = false, takes_value = false)]
+        last: bool,
     },
 }
 

@@ -31,6 +31,9 @@ pub enum Error {
     #[error("HTTP request error: {0}")]
     RequestError(#[from] reqwest::Error),
 
-    #[error("URL parse error: {0}")]
+    #[error("URL parsing error: {0}")]
     URLParseError(#[from] url::ParseError),
+
+    #[error("datetime parsing error: {0}")]
+    DateTimeParseError(#[from] chrono::ParseError),
 }
