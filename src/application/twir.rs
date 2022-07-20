@@ -1,4 +1,7 @@
+use std::str::FromStr;
+
 use chrono::{DateTime, FixedOffset};
+use regex::Regex;
 
 use crate::error::Error;
 
@@ -46,6 +49,8 @@ impl TWiRIssue {
         }
 
         issues.sort_by_key(|e| std::cmp::Reverse(e.datetime()));
+        issues.shrink_to_fit();
+
         Ok(issues)
     }
 
@@ -70,5 +75,74 @@ impl TWiRIssue {
     ///
     pub(crate) fn url(&self) -> &str {
         self.url.as_str()
+    }
+}
+
+///
+/// The This week in Rust issue.
+///
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Issue {
+    ///
+    /// The range of issues.
+    ///
+    Range(u32, u32),
+
+    ///
+    /// The single issue.
+    ///
+    Value(u32),
+}
+
+impl FromStr for Issue {
+    type Err = Error;
+
+    ///
+    /// Convert string to the Issue instance.
+    ///
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let re = Regex::new(r"^\s*(?P<min>[1-9]\d*)\s*\.\.\s*(?P<max>[1-9]\d*)\s*$").unwrap();
+        if let Some(caps) = re.captures(s) {
+            let mut min = u32::from_str(&caps["min"]).unwrap();
+            let mut max = u32::from_str(&caps["max"]).unwrap();
+            if min > max {
+                std::mem::swap(&mut min, &mut max);
+            }
+
+            return Ok(Self::Range(min, max));
+        }
+
+        let re = Regex::new(r"^\s*(?P<value>[1-9]\d*)\s*$").unwrap();
+        if let Some(caps) = re.captures(s) {
+            return Ok(Self::Value(u32::from_str(&caps["value"]).unwrap()));
+        }
+
+        Err(Error::IllegalIssue(s.to_string()))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn issue_test() {
+        for i in 1..=100 {
+            let value = Issue::from_str(format!("{}", i).as_str()).unwrap();
+            assert_eq!(value, Issue::Value(i));
+        }
+
+        assert!(Issue::from_str("0").is_err());
+        assert!(Issue::from_str("-1").is_err());
+
+        for (i1, i2) in (1..=100).zip((1..=100).map(|x| x * x)) {
+            let value = Issue::from_str(format!("{}..{}", i1, i2).as_str()).unwrap();
+            assert_eq!(value, Issue::Range(i1, i2));
+        }
+
+        for (i1, i2) in (1..=100).zip((1..=100).map(|x| x + 10)) {
+            let value = Issue::from_str(format!("{}..{}", i2, i1).as_str()).unwrap();
+            assert_eq!(value, Issue::Range(i1, i2));
+        }
     }
 }

@@ -7,6 +7,9 @@ use thiserror::Error;
 ///
 #[derive(Debug, Error)]
 pub enum Error {
+    #[error("illegal issue number {0}")]
+    IllegalIssue(String),
+
     #[error("illegal notes root {0}")]
     IllegalNotesRoot(path::PathBuf),
 
