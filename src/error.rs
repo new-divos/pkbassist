@@ -19,6 +19,9 @@ pub enum Error {
     #[error("illegal URL: {0}")]
     IllegalURL(url::Url),
 
+    #[error("illegal HTML content")]
+    IllegalHTMLContent,
+
     #[error("unknown media type")]
     UnknownMediaType,
 

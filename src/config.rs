@@ -2,6 +2,7 @@ use std::{env, path};
 
 use clap::{Parser, Subcommand};
 
+use crate::application::twir;
 use crate::error::Error;
 
 ///
@@ -68,6 +69,29 @@ pub enum Note {
     ///
     #[clap(name = "apod")]
     APoD {
+        ///
+        /// Update daily note in notes set.
+        ///
+        #[clap(
+            short = 'd',
+            long = "update-daily",
+            required = false,
+            takes_value = false
+        )]
+        update_daily: bool,
+    },
+
+    #[clap(name = "twir")]
+    TWiR {
+        #[clap(
+            short = 'i',
+            long = "issue",
+            required = true,
+            takes_value = true,
+            parse(try_from_str)
+        )]
+        issues: twir::Issues,
+
         ///
         /// Update daily note in notes set.
         ///

@@ -1,4 +1,4 @@
-use std::str::FromStr;
+use std::{str::FromStr, vec::Vec};
 
 use chrono::{DateTime, FixedOffset};
 use regex::Regex;
@@ -10,50 +10,14 @@ const ARCHIVE_URL: &str = "https://this-week-in-rust.org/blog/archives/index.htm
 ///
 /// This Week in Rust issue.
 ///
-#[derive(Debug)]
-pub(crate) struct TWiRIssue {
+#[derive(Debug, Clone)]
+pub(crate) struct Note {
     datetime: DateTime<FixedOffset>,
     title: String,
     url: String,
 }
 
-impl TWiRIssue {
-    ///
-    /// Select all This Week in Rust issues.
-    ///
-    pub(crate) async fn select() -> Result<Vec<TWiRIssue>, Error> {
-        let response = reqwest::get(ARCHIVE_URL).await?.text().await?;
-        let document = scraper::Html::parse_document(&response);
-
-        let row_selector = scraper::Selector::parse("div.row .post-title").unwrap();
-        let time_selector = scraper::Selector::parse("time").unwrap();
-        let href_selector = scraper::Selector::parse("a").unwrap();
-
-        let mut issues: Vec<Self> = Vec::new();
-        for row_html in document.select(&row_selector) {
-            if let Some(time_html) = row_html.select(&time_selector).next() {
-                if let Some(datetime) = time_html.value().attr("datetime") {
-                    let datetime = DateTime::<FixedOffset>::parse_from_rfc3339(datetime)?;
-
-                    if let Some(href_html) = row_html.select(&href_selector).next() {
-                        if let Some(href) = href_html.value().attr("href") {
-                            issues.push(Self {
-                                datetime,
-                                title: href_html.text().collect::<Vec<_>>().join(" "),
-                                url: href.to_owned(),
-                            });
-                        }
-                    }
-                }
-            }
-        }
-
-        issues.sort_by_key(|e| std::cmp::Reverse(e.datetime()));
-        issues.shrink_to_fit();
-
-        Ok(issues)
-    }
-
+impl Note {
     ///
     /// Issue date and time.
     ///
@@ -79,10 +43,88 @@ impl TWiRIssue {
 }
 
 ///
+/// The collection of This Week in Rust issues.
+///
+pub(crate) struct Notes {
+    notes: Vec<Note>,
+}
+
+impl Notes {
+    ///
+    /// Select all This Week in Rust issues.
+    ///
+    pub(crate) async fn select() -> Result<Notes, Error> {
+        let html_content = reqwest::get(ARCHIVE_URL).await?.text().await?;
+        let document = scraper::Html::parse_document(&html_content);
+
+        let row_selector = scraper::Selector::parse("div.row .post-title").unwrap();
+        let time_selector = scraper::Selector::parse("time").unwrap();
+        let href_selector = scraper::Selector::parse("a").unwrap();
+
+        let mut notes: Vec<Note> = Vec::new();
+        for row_html in document.select(&row_selector) {
+            if let Some(time_html) = row_html.select(&time_selector).next() {
+                if let Some(datetime) = time_html.value().attr("datetime") {
+                    let datetime = DateTime::<FixedOffset>::parse_from_rfc3339(datetime)?;
+
+                    if let Some(href_html) = row_html.select(&href_selector).next() {
+                        if let Some(href) = href_html.value().attr("href") {
+                            notes.push(Note {
+                                datetime,
+                                title: href_html.text().collect::<Vec<_>>().join(" "),
+                                url: href.to_owned(),
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        notes.sort_by_key(|e| std::cmp::Reverse(e.datetime()));
+        notes.shrink_to_fit();
+
+        Ok(Notes { notes })
+    }
+
+    ///
+    /// Get the issues collection containing only the first elemet
+    /// of the source collection.
+    ///
+    pub(crate) fn first(self) -> Self {
+        let mut notes: Vec<_> = self.notes.into_iter().take(1).collect();
+        notes.shrink_to_fit();
+
+        Self { notes }
+    }
+
+    ///
+    /// Get the iterator to iterate issues collection.
+    ///
+    #[inline]
+    pub(crate) fn iter(&self) -> impl Iterator<Item = &Note> {
+        self.notes.iter()
+    }
+
+    ///
+    /// Find the issue by it's number.
+    ///
+    pub(crate) fn find(&self, number: u32) -> Result<&Note, Error> {
+        let issue = number.to_string();
+        for item in self.notes.iter() {
+            if item.title.ends_with(issue.as_str()) {
+                return Ok(item);
+            }
+        }
+
+        Err(Error::IllegalIssue(issue))
+    }
+}
+
+///
 /// The This week in Rust issue.
 ///
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Issue {
+pub enum Issues {
     ///
     /// The range of issues.
     ///
@@ -91,10 +133,10 @@ pub(crate) enum Issue {
     ///
     /// The single issue.
     ///
-    Value(u32),
+    Single(u32),
 }
 
-impl FromStr for Issue {
+impl FromStr for Issues {
     type Err = Error;
 
     ///
@@ -114,7 +156,7 @@ impl FromStr for Issue {
 
         let re = Regex::new(r"^\s*(?P<value>[1-9]\d*)\s*$").unwrap();
         if let Some(caps) = re.captures(s) {
-            return Ok(Self::Value(u32::from_str(&caps["value"]).unwrap()));
+            return Ok(Self::Single(u32::from_str(&caps["value"]).unwrap()));
         }
 
         Err(Error::IllegalIssue(s.to_string()))
@@ -128,21 +170,21 @@ mod tests {
     #[test]
     fn issue_test() {
         for i in 1..=100 {
-            let value = Issue::from_str(format!("{}", i).as_str()).unwrap();
-            assert_eq!(value, Issue::Value(i));
+            let value = Issues::from_str(format!("{}", i).as_str()).unwrap();
+            assert_eq!(value, Issues::Single(i));
         }
 
-        assert!(Issue::from_str("0").is_err());
-        assert!(Issue::from_str("-1").is_err());
+        assert!(Issues::from_str("0").is_err());
+        assert!(Issues::from_str("-1").is_err());
 
         for (i1, i2) in (1..=100).zip((1..=100).map(|x| x * x)) {
-            let value = Issue::from_str(format!("{}..{}", i1, i2).as_str()).unwrap();
-            assert_eq!(value, Issue::Range(i1, i2));
+            let value = Issues::from_str(format!("{}..{}", i1, i2).as_str()).unwrap();
+            assert_eq!(value, Issues::Range(i1, i2));
         }
 
         for (i1, i2) in (1..=100).zip((1..=100).map(|x| x + 10)) {
-            let value = Issue::from_str(format!("{}..{}", i2, i1).as_str()).unwrap();
-            assert_eq!(value, Issue::Range(i1, i2));
+            let value = Issues::from_str(format!("{}..{}", i2, i1).as_str()).unwrap();
+            assert_eq!(value, Issues::Range(i1, i2));
         }
     }
 }

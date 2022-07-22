@@ -9,6 +9,7 @@ chrono = {version = "^0.4", features = ["serde"]}
 clap = {version = "^3.2", features = ["derive"]}
 env_logger = {version = "^0.9"}
 futures = {version = "^0.3"}
+html2md = {version = "^0.2"}
 log = {version = "^0.4"}
 prettytable-rs = {version = "^0.8"}
 regex = {version = "^1.6"}

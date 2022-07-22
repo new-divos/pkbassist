@@ -8,7 +8,7 @@ const APOD_DATE_FORMAT: &str = "%Y-%m-%d";
 /// NASA Astronomy Picture of the Day API service version.
 ///
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub(crate) enum APoDAPIVersion {
+pub(crate) enum Version {
     #[serde(rename = "v1")]
     V1_0,
 }
@@ -17,7 +17,7 @@ pub(crate) enum APoDAPIVersion {
 /// NASA Astronomy Picture of the Day API media type.
 ///
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub(crate) enum APoDAPIMediaType {
+pub(crate) enum MediaType {
     #[serde(rename = "image")]
     Image,
 
@@ -32,7 +32,7 @@ pub(crate) enum APoDAPIMediaType {
 /// NASA Astronomy Picture of the Day API response.
 ///
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct APoDAPIResponse {
+pub(crate) struct Info {
     ///
     /// This field (when present) contains the copyright holder of the image.
     /// If the field is not present, the image is public domain.
@@ -64,12 +64,12 @@ pub(crate) struct APoDAPIResponse {
     /// This field determines the type of content. Usually this is image,
     /// but can be video. There may be other media_types, but I haven’t found any.
     ///
-    media_type: APoDAPIMediaType,
+    media_type: MediaType,
 
     ///
     /// This has always been v1, but.. could one day change.
     ///
-    service_version: APoDAPIVersion,
+    service_version: Version,
 
     ///
     /// This APOD title is usually 3-6 words long, and is reliably concise,
@@ -114,7 +114,7 @@ where
     NaiveDate::parse_from_str(&s, APOD_DATE_FORMAT).map_err(serde::de::Error::custom)
 }
 
-impl APoDAPIResponse {
+impl Info {
     ///
     /// Get the copyright holder of the image.
     ///
@@ -143,7 +143,7 @@ impl APoDAPIResponse {
     /// Get the media type of the content.
     ///
     #[inline]
-    pub(crate) fn media_type(&self) -> APoDAPIMediaType {
+    pub(crate) fn media_type(&self) -> MediaType {
         self.media_type
     }
 
