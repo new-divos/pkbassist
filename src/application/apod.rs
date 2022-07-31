@@ -8,7 +8,7 @@ const APOD_DATE_FORMAT: &str = "%Y-%m-%d";
 /// NASA Astronomy Picture of the Day API service version.
 ///
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub(crate) enum Version {
+pub enum Version {
     #[serde(rename = "v1")]
     V1_0,
 }

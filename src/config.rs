@@ -1,159 +1,125 @@
-use std::{env, path};
+use std::path;
 
-use clap::{Parser, Subcommand};
+use serde::{Deserialize, Serialize};
+use tokio::{
+    fs::{self, File},
+    io::{AsyncReadExt, AsyncWriteExt},
+};
 
-use crate::application::twir;
+use crate::application::apod;
 use crate::error::Error;
 
 ///
-/// The application arguments.
+/// The notes application configuration.
 ///
-#[derive(Debug, Parser)]
-#[clap(
-    author = "Roman A. Voronkin",
-    version,
-    about = "A Very simple Notes Attendant",
-    long_about = None,
-)]
-#[clap(propagate_version = true)]
-pub struct Arguments {
+#[derive(Debug, Serialize, Deserialize)]
+pub(crate) struct NotesConfig {
     ///
-    /// The application command.
+    /// The root directory of the notes set.
     ///
-    #[clap(subcommand)]
-    pub(crate) command: Command,
+    #[serde(rename = "Root")]
+    root: path::PathBuf,
 }
 
 ///
-/// The application command.
+/// The NASA Astronomy Picture of the Day API configuration.
 ///
-#[derive(Debug, Subcommand)]
-#[non_exhaustive]
-pub enum Command {
+#[derive(Debug, Serialize, Deserialize)]
+pub(crate) struct NASAAPoDAPIConfig {
     ///
-    /// Repair notes set.
+    /// The NASA Astronomy Picture of the Day API Key.
     ///
-    Repair {
-        ///
-        /// Repair wiki references.
-        ///
-        #[clap(short = 'w', long = "wiki-refs", required = false, takes_value = false)]
-        wiki_refs: bool,
-    },
+    #[serde(rename = "Key")]
+    key: Option<String>,
 
     ///
-    /// Grab notes to the notes set.
+    /// The NASA Astronomy Picture of the Day API Version.
     ///
-    Grab {
-        #[clap(subcommand)]
-        note: Note,
-    },
-
-    ///
-    /// Show the additional information.
-    ///
-    Show {
-        #[clap(subcommand)]
-        info: Info,
-    },
-}
-
-///
-/// The application grab command object.
-///
-#[derive(Debug, Subcommand)]
-#[non_exhaustive]
-pub enum Note {
-    ///
-    /// Grab NASA Astronomy Picture of the Day to the notes set.
-    ///
-    #[clap(name = "apod")]
-    APoD {
-        ///
-        /// Update daily note in notes set.
-        ///
-        #[clap(
-            short = 'd',
-            long = "update-daily",
-            required = false,
-            takes_value = false
-        )]
-        update_daily: bool,
-    },
-
-    #[clap(name = "twir")]
-    TWiR {
-        #[clap(
-            short = 'i',
-            long = "issue",
-            required = true,
-            takes_value = true,
-            parse(try_from_str)
-        )]
-        issues: twir::Issues,
-
-        ///
-        /// Update daily note in notes set.
-        ///
-        #[clap(
-            short = 'd',
-            long = "update-daily",
-            required = false,
-            takes_value = false
-        )]
-        update_daily: bool,
-    },
-}
-
-///
-/// The application show command object.
-///
-#[derive(Debug, Subcommand)]
-#[non_exhaustive]
-pub enum Info {
-    ///
-    /// Show This Week in Rust issues.
-    ///
-    #[clap(name = "twir")]
-    TWiR {
-        ///
-        /// Show only the last issue.
-        ///
-        #[clap(short = 'l', long = "last", required = false, takes_value = false)]
-        last: bool,
-    },
+    #[serde(rename = "Version")]
+    version: apod::Version,
 }
 
 ///
 /// The application configuration.
 ///
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Config {
     ///
-    /// The root directory of the notes set.
+    /// The notes application configuration.
     ///
-    root: path::PathBuf,
+    #[serde(rename = "Notes")]
+    notes: NotesConfig,
 
     ///
-    /// NASA Astronomy Picture of the Day API Key.
+    /// The NASA Astronomy Picture of the Day API configuration.
     ///
-    nasa_key: Option<String>,
+    #[serde(rename = "NASA APoD API")]
+    nasa_apod: NASAAPoDAPIConfig,
 }
 
 impl Config {
     ///
     /// New instance of the application configuration.
     ///
-    pub fn new() -> Result<Self, Error> {
-        let root = path::PathBuf::from(env::var("NOTES_ROOT")?);
-        if !root.exists() || !root.is_dir() {
-            return Err(Error::IllegalNotesRoot(root));
+    pub async fn new() -> Result<Self, Error> {
+        let config_path = dirs::config_dir().ok_or(Error::CannotFindConfig)?;
+        if !config_path.exists() || !config_path.is_dir() {
+            return Err(Error::CannotFindConfig);
         }
 
-        Ok(Self {
-            root,
-            nasa_key: env::var("NASA_KEY").ok(),
-        })
+        let config_path = config_path.join("nta");
+        fs::create_dir_all(config_path.as_path()).await?;
+        let config_path = config_path.join("config.toml");
+        if !config_path.exists() || !config_path.is_file() {
+            Self::create_config(config_path.as_path()).await?;
+        }
+
+        let mut buffer = String::new();
+        {
+            let mut file = File::open(config_path.as_path()).await?;
+            file.read_to_string(&mut buffer).await?;
+        }
+
+        let config = toml::from_str::<Self>(&buffer)?;
+        if !config.is_root_valid() {
+            return Err(Error::IllegalNotesRoot(config.notes.root));
+        }
+
+        Ok(config)
+    }
+
+    ///
+    /// Create the configuration file.
+    ///
+    async fn create_config(path: &path::Path) -> Result<(), Error> {
+        let mut notes_root = String::new();
+        print!("Enter the notes root path: ");
+        let _ = std::io::stdin().read_line(&mut notes_root).unwrap();
+        let notes_root = path::PathBuf::from(notes_root);
+
+        let mut apod_key = String::new();
+        print!("Enter the NASA Astronomy Picture of the Day API key: ");
+        let _ = std::io::stdin().read_line(&mut apod_key).unwrap();
+
+        let config = Self {
+            notes: NotesConfig { root: notes_root },
+            nasa_apod: NASAAPoDAPIConfig {
+                key: Some(apod_key),
+                version: apod::Version::V1_0,
+            },
+        };
+
+        let content = toml::to_string(&config)?;
+        {
+            let mut file = File::create(path).await?;
+            file.write_all(content.as_bytes()).await?;
+            log::info!(
+                "The configuration file \"{}\" has been created",
+                path.display()
+            );
+        }
+
+        Ok(())
     }
 
     ///
@@ -161,14 +127,28 @@ impl Config {
     ///
     #[inline]
     pub fn root(&self) -> &path::Path {
-        self.root.as_path()
+        self.notes.root.as_path()
     }
 
     ///
     /// Get NASA Astronomy Picture of the Day API Key.
     ///
     #[inline]
-    pub fn nasa_key(&self) -> Option<&str> {
-        self.nasa_key.as_deref()
+    pub fn apod_key(&self) -> Option<&str> {
+        self.nasa_apod.key.as_deref()
+    }
+
+    ///
+    /// Get NASA Astronomy Picture of the Day API Version.
+    ///
+    #[inline]
+    pub fn apod_version(&self) -> apod::Version {
+        self.nasa_apod.version
+    }
+
+    // Validate notes set root.
+    #[inline]
+    fn is_root_valid(&self) -> bool {
+        self.notes.root.exists() && self.notes.root.is_dir()
     }
 }

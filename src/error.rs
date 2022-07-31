@@ -7,6 +7,9 @@ use thiserror::Error;
 ///
 #[derive(Debug, Error)]
 pub enum Error {
+    #[error("cannot find configuration file")]
+    CannotFindConfig,
+
     #[error("illegal issue number {0}")]
     IllegalIssue(String),
 
@@ -42,4 +45,10 @@ pub enum Error {
 
     #[error("datetime parsing error: {0}")]
     DateTimeParseError(#[from] chrono::ParseError),
+
+    #[error("configuration parsing error {0}")]
+    ConfigParseError(#[from] toml::de::Error),
+
+    #[error("configuration serialization error {0}")]
+    ConfigSerializeError(#[from] toml::ser::Error),
 }

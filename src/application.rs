@@ -18,7 +18,8 @@ use uuid::Uuid;
 use walkdir::WalkDir;
 
 use crate::{
-    config::{Arguments, Command, Config, Info, Note},
+    cli::{Arguments, Command, Info, Note},
+    config::Config,
     error::Error,
 };
 
@@ -125,7 +126,7 @@ impl Application {
     /// Grab NASA Astronomy Picture of the Day.
     ///
     async fn grab_apod(&self, update_daily: bool) -> Result<(), Error> {
-        let nasa_key = self.config.nasa_key().ok_or(Error::IllegalNASAKey)?;
+        let nasa_key = self.config.apod_key().ok_or(Error::IllegalNASAKey)?;
         let url = format!("https://api.nasa.gov/planetary/apod?api_key={}", nasa_key);
 
         let response = reqwest::get(url).await?.json::<apod::Info>().await?;
