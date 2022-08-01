@@ -95,11 +95,12 @@ impl Config {
         let mut notes_root = String::new();
         print!("Enter the notes root path: ");
         let _ = std::io::stdin().read_line(&mut notes_root).unwrap();
-        let notes_root = path::PathBuf::from(notes_root);
+        let notes_root = path::PathBuf::from(notes_root.trim());
 
         let mut apod_key = String::new();
         print!("Enter the NASA Astronomy Picture of the Day API key: ");
         let _ = std::io::stdin().read_line(&mut apod_key).unwrap();
+        let apod_key = apod_key.trim().to_owned();
 
         let config = Self {
             notes: NotesConfig { root: notes_root },
