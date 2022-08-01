@@ -1,4 +1,4 @@
-use std::path;
+use std::{borrow::Cow, path};
 
 use serde::{Deserialize, Serialize};
 use tokio::{
@@ -19,6 +19,12 @@ pub(crate) struct NotesConfig {
     ///
     #[serde(rename = "Root")]
     root: path::PathBuf,
+
+    ///
+    /// The files directory of the notes set.
+    ///
+    #[serde(rename = "Files")]
+    files_path: Option<path::PathBuf>,
 }
 
 ///
@@ -97,13 +103,18 @@ impl Config {
         let _ = std::io::stdin().read_line(&mut notes_root).unwrap();
         let notes_root = path::PathBuf::from(notes_root.trim());
 
+        let files_path = notes_root.join("Files");
+
         let mut apod_key = String::new();
         print!("Enter the NASA Astronomy Picture of the Day API key: ");
         let _ = std::io::stdin().read_line(&mut apod_key).unwrap();
         let apod_key = apod_key.trim().to_owned();
 
         let config = Self {
-            notes: NotesConfig { root: notes_root },
+            notes: NotesConfig {
+                root: notes_root,
+                files_path: Some(files_path),
+            },
             nasa_apod: NASAAPoDAPIConfig {
                 key: Some(apod_key),
                 version: apod::Version::V1_0,
@@ -129,6 +140,18 @@ impl Config {
     #[inline]
     pub fn root(&self) -> &path::Path {
         self.notes.root.as_path()
+    }
+
+    ///
+    /// Get the files directory of the notes set.
+    ///
+    #[inline]
+    pub fn files_path(&self) -> Cow<path::Path> {
+        if let Some(ref path) = self.notes.files_path {
+            Cow::Borrowed(path.as_path())
+        } else {
+            Cow::Owned(self.notes.root.join("Files"))
+        }
     }
 
     ///

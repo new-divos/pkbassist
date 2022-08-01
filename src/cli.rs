@@ -34,8 +34,14 @@ pub enum Command {
         ///
         /// Repair wiki references.
         ///
-        #[clap(short = 'w', long = "wiki-refs", required = false, takes_value = false)]
+        #[clap(long = "wiki-refs", required = false, takes_value = false)]
         wiki_refs: bool,
+
+        ///
+        /// Remove unused files.
+        ///
+        #[clap(long = "remove-unused-files", required = false, takes_value = false)]
+        remove_unused_files: bool,
     },
 
     ///

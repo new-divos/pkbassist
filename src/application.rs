@@ -1,4 +1,5 @@
 use std::{
+    collections::{HashMap, HashSet},
     ffi::OsStr,
     io::Cursor,
     iter::repeat_with,
@@ -48,9 +49,16 @@ impl Application {
     pub async fn run(&self, args: &Arguments) -> Result<(), Error> {
         match args.command {
             // Repair notes set.
-            Command::Repair { wiki_refs } => {
+            Command::Repair {
+                wiki_refs,
+                remove_unused_files,
+            } => {
                 if wiki_refs {
                     self.repair_wiki_refs().await?;
+                }
+
+                if remove_unused_files {
+                    self.remove_unused_files().await?;
                 }
             }
 
@@ -120,6 +128,100 @@ impl Application {
         } else {
             Err(Error::MultipleExecutorsError(errors))
         }
+    }
+
+    ///
+    /// Remove unused files.
+    ///
+    async fn remove_unused_files(&self) -> Result<(), Error> {
+        let files = Arc::new(
+            WalkDir::new(self.config.files_path())
+                .into_iter()
+                .filter_map(|e| e.ok())
+                .filter_map(|e| {
+                    if e.path().exists() && e.path().is_file() {
+                        if let Some(file_name) = e.path().file_name().and_then(OsStr::to_str) {
+                            return Some((file_name.to_string(), PathBuf::from(e.path())));
+                        }
+                    }
+
+                    None
+                })
+                .collect::<HashMap<String, PathBuf>>(),
+        );
+
+        let mix: Vec<_> = join_all(
+            WalkDir::new(self.config.root())
+                .into_iter()
+                .filter_map(|e| e.ok())
+                .filter(|e| {
+                    e.path().exists()
+                        && e.path().is_file()
+                        && e.path().extension().and_then(OsStr::to_str) == Some("md")
+                })
+                .zip(repeat_with(|| files.clone()))
+                .map(|(e, files)| async move {
+                    log::info!("Start processing of the file \"{}\"", e.path().display());
+                    let mut content = String::new();
+                    {
+                        let mut file = File::open(e.path()).await?;
+                        file.read_to_string(&mut content).await?;
+                    }
+
+                    let mut links: Vec<String> = Vec::new();
+                    for (file_name, _) in files.iter() {
+                        if content.contains(file_name.as_str()) {
+                            links.push(file_name.clone());
+                        }
+                    }
+                    links.shrink_to_fit();
+
+                    log::info!("Finish processing of the file \"{}\"", e.path().display());
+                    Ok(links) as Result<Vec<String>, Error>
+                }),
+        )
+        .await;
+
+        let mut links: HashSet<String> = HashSet::new();
+        let mut errors: Vec<Error> = Vec::new();
+        for r in mix.into_iter() {
+            match r {
+                Ok(l) => links.extend(l),
+                Err(e) => errors.push(e),
+            }
+        }
+
+        if errors.is_empty() {
+            let unused: Vec<_> = files
+                .iter()
+                .filter_map(|(name, path)| {
+                    if links.contains(name) {
+                        None
+                    } else {
+                        Some(PathBuf::from(path))
+                    }
+                })
+                .collect();
+
+            if !unused.is_empty() {
+                // Create the table.
+                let mut table = Table::new();
+                table.set_format(*prettytable::format::consts::FORMAT_NO_LINESEP_WITH_TITLE);
+
+                table.set_titles(row!["Unused Files"]);
+                for path in &unused {
+                    table.add_row(row![path.display()]);
+                    tokio::fs::remove_file(path.as_path()).await?;
+                }
+
+                // Print the table to stdout
+                table.printstd();
+            }
+
+            return Ok(());
+        }
+
+        Err(Error::MultipleExecutorsError(errors))
     }
 
     ///
