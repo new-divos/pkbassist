@@ -1,4 +1,7 @@
-use std::{borrow::Cow, path};
+use std::{
+    borrow::Cow,
+    path::{Path, PathBuf},
+};
 
 use serde::{Deserialize, Serialize};
 use tokio::{
@@ -18,13 +21,25 @@ pub(crate) struct NotesConfig {
     /// The root directory of the notes set.
     ///
     #[serde(rename = "Root")]
-    root: path::PathBuf,
+    root: PathBuf,
 
     ///
     /// The files directory of the notes set.
     ///
     #[serde(rename = "Files")]
-    files_path: Option<path::PathBuf>,
+    files_path: Option<PathBuf>,
+
+    ///
+    /// The daily directory of the notes set.
+    ///
+    #[serde(rename = "Daily")]
+    daily_path: Option<PathBuf>,
+
+    ///
+    /// The news directory of the notes set.
+    ///
+    #[serde(rename = "News")]
+    news_path: Option<PathBuf>,
 }
 
 ///
@@ -97,13 +112,16 @@ impl Config {
     ///
     /// Create the configuration file.
     ///
-    async fn create_config(path: &path::Path) -> Result<(), Error> {
+    async fn create_config(path: &Path) -> Result<(), Error> {
         let mut notes_root = String::new();
         print!("Enter the notes root path: ");
         let _ = std::io::stdin().read_line(&mut notes_root).unwrap();
-        let notes_root = path::PathBuf::from(notes_root.trim());
+        let notes_root = PathBuf::from(notes_root.trim());
 
         let files_path = notes_root.join("Files");
+        let daily_path = notes_root.join("Daily");
+        let base_path = notes_root.join("Base");
+        let news_path = base_path.join("News");
 
         let mut apod_key = String::new();
         print!("Enter the NASA Astronomy Picture of the Day API key: ");
@@ -114,6 +132,8 @@ impl Config {
             notes: NotesConfig {
                 root: notes_root,
                 files_path: Some(files_path),
+                daily_path: Some(daily_path),
+                news_path: Some(news_path),
             },
             nasa_apod: NASAAPoDAPIConfig {
                 key: Some(apod_key),
@@ -138,7 +158,7 @@ impl Config {
     /// Get the root directory of the notes set.
     ///
     #[inline]
-    pub fn root(&self) -> &path::Path {
+    pub fn root(&self) -> &Path {
         self.notes.root.as_path()
     }
 
@@ -146,11 +166,35 @@ impl Config {
     /// Get the files directory of the notes set.
     ///
     #[inline]
-    pub fn files_path(&self) -> Cow<path::Path> {
+    pub fn files_path(&self) -> Cow<Path> {
         if let Some(ref path) = self.notes.files_path {
             Cow::Borrowed(path.as_path())
         } else {
             Cow::Owned(self.notes.root.join("Files"))
+        }
+    }
+
+    ///
+    /// Get the files directory of the notes set.
+    ///
+    #[inline]
+    pub fn daily_path(&self) -> Cow<Path> {
+        if let Some(ref path) = self.notes.daily_path {
+            Cow::Borrowed(path.as_path())
+        } else {
+            Cow::Owned(self.notes.root.join("Daily"))
+        }
+    }
+
+    ///
+    /// Get the news directory of the notes set.
+    /// 
+    #[inline]
+    pub fn news_path(&self) -> Cow<Path> {
+        if let Some(ref path) = self.notes.news_path {
+            Cow::Borrowed(path.as_path())
+        } else {
+            Cow::Owned(self.notes.root.join("Base").join("News"))
         }
     }
 

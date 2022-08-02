@@ -233,11 +233,10 @@ impl Application {
 
         let response = reqwest::get(url).await?.json::<apod::Info>().await?;
 
-        let root_path = self.config.root();
-        let files_path = root_path.join("Files");
-        tokio::fs::create_dir_all(files_path.as_path()).await?;
-        let news_path = root_path.join("Base").join("News");
-        tokio::fs::create_dir_all(news_path.as_path()).await?;
+        let files_path = self.config.files_path();
+        tokio::fs::create_dir_all(&files_path).await?;
+        let news_path = self.config.news_path();
+        tokio::fs::create_dir_all(&news_path).await?;
 
         let media_ref: String;
         match response.media_type() {
@@ -297,7 +296,7 @@ impl Application {
         }
 
         let date = response.date().format("%Y-%m-%d").to_string();
-        let daily_path = root_path.join("Daily").join(format!("{}.md", date));
+        let daily_path = self.config.daily_path().join(format!("{}.md", date));
 
         let mut content = vec![
             "---\ntype: news".to_string(),
@@ -404,11 +403,7 @@ impl Application {
             content.push(format!("| [[TWiR {0}|{0}]] >>\n", next));
         }
 
-        let daily_path = self
-            .config
-            .root()
-            .join("Daily")
-            .join(format!("{}.md", date));
+        let daily_path = self.config.daily_path().join(format!("{}.md", date));
 
         if update_daily && daily_path.exists() && daily_path.is_file() {
             content.push(format!("# [[{}]]: This Week in Rust {}\n", date, number));
@@ -466,9 +461,8 @@ impl Application {
     async fn grab_twir(&self, issues: &twir::Issues, update_daily: bool) -> Result<(), Error> {
         let notes = Arc::new(twir::Notes::select().await?);
 
-        let root_path = self.config.root();
-        let news_path = root_path.join("Base").join("News");
-        tokio::fs::create_dir_all(news_path.as_path()).await?;
+        let news_path = self.config.news_path();
+        tokio::fs::create_dir_all(&news_path).await?;
 
         match issues {
             // The issues range.
@@ -477,7 +471,7 @@ impl Application {
                     (*min_number..=*max_number)
                         .zip((*min_number..=*max_number).map(|_| notes.clone()))
                         .map(|(number, cloned)| {
-                            self.grab_twir_note(number, cloned, news_path.as_path(), update_daily)
+                            self.grab_twir_note(number, cloned, &news_path, update_daily)
                         }),
                 )
                 .await
@@ -492,7 +486,7 @@ impl Application {
 
             // The single issue.
             twir::Issues::Single(number) => {
-                self.grab_twir_note(*number, notes.clone(), news_path.as_path(), update_daily)
+                self.grab_twir_note(*number, notes.clone(), &news_path, update_daily)
                     .await?;
             }
         }

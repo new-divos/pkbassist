@@ -1,4 +1,4 @@
-use std::{str::FromStr, vec::Vec};
+use std::str::FromStr;
 
 use chrono::{DateTime, FixedOffset};
 use regex::Regex;
