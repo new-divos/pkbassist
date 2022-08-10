@@ -7,11 +7,14 @@ use std::{
     sync::Arc,
 };
 
-use futures::future::join_all;
+use futures::{
+    future::join_all,
+    stream::{self, StreamExt},
+};
 use prettytable::{cell, row, Table};
 use regex::Regex;
 use tokio::{
-    fs::File,
+    fs::{self, File},
     io::{AsyncReadExt, AsyncWriteExt},
 };
 use url::Url;
@@ -25,6 +28,7 @@ use crate::{
 };
 
 pub(crate) mod apod;
+pub(crate) mod entry;
 pub(crate) mod twir;
 
 ///
@@ -52,6 +56,7 @@ impl Application {
             Command::Repair {
                 wiki_refs,
                 remove_unused_files,
+                rename_files,
             } => {
                 if wiki_refs {
                     self.repair_wiki_refs().await?;
@@ -59,6 +64,10 @@ impl Application {
 
                 if remove_unused_files {
                     self.remove_unused_files().await?;
+                }
+
+                if rename_files {
+                    self.rename_attached_files().await?;
                 }
             }
 
@@ -222,6 +231,108 @@ impl Application {
         }
 
         Err(Error::MultipleExecutorsError(errors))
+    }
+
+    ///
+    /// Rename attached files.
+    ///
+    async fn rename_attached_files(&self) -> Result<(), Error> {
+        let re = Arc::new(
+            Regex::new(
+                r"^[\dA-Fa-f]{8}\-[\dA-Fa-f]{4}\-[\dA-Fa-f]{4}\-[\dA-Fa-f]{4}-[\dA-Fa-f]{12}$",
+            )
+            .unwrap(),
+        );
+
+        let files = Arc::new(
+            stream::iter(WalkDir::new(self.config.files_path()).into_iter())
+                .filter_map(|e| async move {
+                    if let Ok(e) = e {
+                        if e.path().exists() && e.path().is_file() {
+                            return Some(e);
+                        }
+                    };
+
+                    None
+                })
+                .zip(stream::iter(repeat_with(|| re.clone())))
+                .filter_map(|(e, re)| async move {
+                    let stem = e.path().file_stem().and_then(OsStr::to_str);
+                    if let Some(stem) = stem {
+                        if !re.is_match(stem) {
+                            if let Some(entry) = entry::FileEntry::new(e.path(), Uuid::new_v4()) {
+                                return Some((stem.to_string(), entry));
+                            }
+                        }
+                    }
+
+                    None
+                })
+                .collect::<HashMap<_, _>>()
+                .await,
+        );
+
+        let mut errors: Vec<_> = stream::iter(WalkDir::new(self.config.root()).into_iter())
+            .filter_map(|e| async move {
+                if let Ok(e) = e {
+                    if e.path().exists()
+                        && e.path().is_file()
+                        && e.path().extension().and_then(OsStr::to_str) == Some("md")
+                    {
+                        return Some(e);
+                    }
+                }
+
+                None
+            })
+            .zip(stream::iter(repeat_with(|| files.clone())))
+            .then(|(e, files)| async move {
+                log::info!("Start processing of the file \"{}\"", e.path().display());
+                let mut content = String::new();
+                {
+                    let mut file = File::open(e.path()).await?;
+                    file.read_to_string(&mut content).await?;
+                }
+
+                let mut dirty = false;
+                for (stem, fe) in files.iter() {
+                    if content.contains(stem) {
+                        content = content.replace(fe.old_name(), fe.new_name().as_ref());
+                        dirty = true;
+                    }
+                }
+
+                if dirty {
+                    let mut file = File::create(e.path()).await?;
+                    file.write_all(content.as_bytes()).await?;
+                }
+
+                log::info!("Finish processing of the file \"{}\"", e.path().display());
+                Ok(()) as Result<(), Error>
+            })
+            .collect::<Vec<_>>()
+            .await
+            .into_iter()
+            .filter_map(|r| r.err())
+            .collect();
+
+        errors.extend(
+            stream::iter(files.iter())
+                .then(|(_, fe)| async move {
+                    fs::rename(fe.old_path(), fe.new_path()).await?;
+                    Ok(()) as Result<(), Error>
+                })
+                .collect::<Vec<_>>()
+                .await
+                .into_iter()
+                .filter_map(|r| r.err()),
+        );
+
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(Error::MultipleExecutorsError(errors))
+        }
     }
 
     ///

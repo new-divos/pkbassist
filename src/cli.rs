@@ -42,6 +42,12 @@ pub enum Command {
         ///
         #[clap(long = "remove-unused-files", required = false, takes_value = false)]
         remove_unused_files: bool,
+
+        ///
+        /// Rename attached files.
+        ///
+        #[clap(long = "rename-files", required = false, takes_value = false)]
+        rename_files: bool,
     },
 
     ///
