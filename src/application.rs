@@ -7,10 +7,7 @@ use std::{
     sync::Arc,
 };
 
-use futures::{
-    future::join_all,
-    stream::{self, StreamExt},
-};
+use futures::stream::{self, StreamExt};
 use prettytable::{cell, row, Table};
 use regex::Regex;
 use tokio::{
@@ -103,34 +100,40 @@ impl Application {
             )
             .unwrap(),
         );
-        let errors: Vec<_> = join_all(
-            WalkDir::new(self.config.root())
-                .into_iter()
-                .filter_map(|e| e.ok())
-                .filter(|e| e.path().extension().and_then(OsStr::to_str) == Some("md"))
-                .zip(repeat_with(|| re.clone()))
-                .map(|(e, re)| async move {
-                    log::info!("Start processing of the file \"{}\"", e.path().display());
-                    let mut buffer = String::new();
+        let errors = stream::iter(WalkDir::new(self.config.root()).into_iter())
+            .filter_map(|e| async move {
+                if let Ok(e) = e {
+                    if e.path().exists()
+                        && e.path().is_file()
+                        && e.path().extension().and_then(OsStr::to_str) == Some("md")
                     {
-                        let mut file = File::open(e.path()).await?;
-                        file.read_to_string(&mut buffer).await?;
+                        return Some(e);
                     }
+                }
 
-                    let content = re.replace_all(&buffer, "[[$file|$descr]]");
-                    {
-                        let mut file = File::create(e.path()).await?;
-                        file.write_all(content.as_bytes()).await?;
-                    }
+                None
+            })
+            .zip(stream::iter(repeat_with(|| re.clone())))
+            .then(|(e, re)| async move {
+                log::info!("Start processing of the file \"{}\"", e.path().display());
+                let mut buffer = String::new();
+                {
+                    let mut file = File::open(e.path()).await?;
+                    file.read_to_string(&mut buffer).await?;
+                }
 
-                    log::info!("Finish processing of the file \"{}\"", e.path().display());
-                    Ok(())
-                }),
-        )
-        .await
-        .into_iter()
-        .filter_map(|r| r.err())
-        .collect();
+                let content = re.replace_all(&buffer, "[[$file|$descr]]");
+                {
+                    let mut file = File::create(e.path()).await?;
+                    file.write_all(content.as_bytes()).await?;
+                }
+
+                log::info!("Finish processing of the file \"{}\"", e.path().display());
+                Ok(()) as Result<(), Error>
+            })
+            .filter_map(|r| async move { r.err() })
+            .collect::<Vec<_>>()
+            .await;
 
         if errors.is_empty() {
             Ok(())
@@ -144,52 +147,57 @@ impl Application {
     ///
     async fn remove_unused_files(&self) -> Result<(), Error> {
         let files = Arc::new(
-            WalkDir::new(self.config.files_path())
-                .into_iter()
-                .filter_map(|e| e.ok())
-                .filter_map(|e| {
-                    if e.path().exists() && e.path().is_file() {
-                        if let Some(file_name) = e.path().file_name().and_then(OsStr::to_str) {
-                            return Some((file_name.to_string(), PathBuf::from(e.path())));
+            stream::iter(WalkDir::new(self.config.files_path()).into_iter())
+                .filter_map(|e| async move {
+                    if let Ok(e) = e {
+                        if e.path().exists() && e.path().is_file() {
+                            if let Some(file_name) = e.path().file_name().and_then(OsStr::to_str) {
+                                return Some((file_name.to_string(), PathBuf::from(e.path())));
+                            }
                         }
                     }
 
                     None
                 })
-                .collect::<HashMap<String, PathBuf>>(),
+                .collect::<HashMap<String, PathBuf>>()
+                .await,
         );
 
-        let mix: Vec<_> = join_all(
-            WalkDir::new(self.config.root())
-                .into_iter()
-                .filter_map(|e| e.ok())
-                .filter(|e| {
-                    e.path().exists()
+        let mix = stream::iter(WalkDir::new(self.config.root()).into_iter())
+            .filter_map(|e| async move {
+                if let Ok(e) = e {
+                    if e.path().exists()
                         && e.path().is_file()
                         && e.path().extension().and_then(OsStr::to_str) == Some("md")
-                })
-                .zip(repeat_with(|| files.clone()))
-                .map(|(e, files)| async move {
-                    log::info!("Start processing of the file \"{}\"", e.path().display());
-                    let mut content = String::new();
                     {
-                        let mut file = File::open(e.path()).await?;
-                        file.read_to_string(&mut content).await?;
+                        return Some(e);
                     }
+                }
 
-                    let mut links: Vec<String> = Vec::new();
-                    for (file_name, _) in files.iter() {
-                        if content.contains(file_name.as_str()) {
-                            links.push(file_name.clone());
-                        }
+                None
+            })
+            .zip(stream::iter(repeat_with(|| files.clone())))
+            .then(|(e, files)| async move {
+                log::info!("Start processing of the file \"{}\"", e.path().display());
+                let mut content = String::new();
+                {
+                    let mut file = File::open(e.path()).await?;
+                    file.read_to_string(&mut content).await?;
+                }
+
+                let mut links: Vec<String> = Vec::new();
+                for (file_name, _) in files.iter() {
+                    if content.contains(file_name.as_str()) {
+                        links.push(file_name.clone());
                     }
-                    links.shrink_to_fit();
+                }
+                links.shrink_to_fit();
 
-                    log::info!("Finish processing of the file \"{}\"", e.path().display());
-                    Ok(links) as Result<Vec<String>, Error>
-                }),
-        )
-        .await;
+                log::info!("Finish processing of the file \"{}\"", e.path().display());
+                Ok(links) as Result<Vec<String>, Error>
+            })
+            .collect::<Vec<_>>()
+            .await;
 
         let mut links: HashSet<String> = HashSet::new();
         let mut errors: Vec<Error> = Vec::new();
@@ -272,7 +280,7 @@ impl Application {
                 .await,
         );
 
-        let mut errors: Vec<_> = stream::iter(WalkDir::new(self.config.root()).into_iter())
+        let mut errors = stream::iter(WalkDir::new(self.config.root()).into_iter())
             .filter_map(|e| async move {
                 if let Ok(e) = e {
                     if e.path().exists()
@@ -310,11 +318,9 @@ impl Application {
                 log::info!("Finish processing of the file \"{}\"", e.path().display());
                 Ok(()) as Result<(), Error>
             })
+            .filter_map(|r| async move { r.err() })
             .collect::<Vec<_>>()
-            .await
-            .into_iter()
-            .filter_map(|r| r.err())
-            .collect();
+            .await;
 
         errors.extend(
             stream::iter(files.iter())
@@ -322,10 +328,9 @@ impl Application {
                     fs::rename(fe.old_path(), fe.new_path()).await?;
                     Ok(()) as Result<(), Error>
                 })
+                .filter_map(|r| async move { r.err() })
                 .collect::<Vec<_>>()
-                .await
-                .into_iter()
-                .filter_map(|r| r.err()),
+                .await,
         );
 
         if errors.is_empty() {
@@ -572,23 +577,23 @@ impl Application {
     async fn grab_twir(&self, issues: &twir::Issues, update_daily: bool) -> Result<(), Error> {
         let notes = Arc::new(twir::Notes::select().await?);
 
-        let news_path = self.config.news_path();
-        tokio::fs::create_dir_all(&news_path).await?;
+        let news_path = Arc::new(PathBuf::from(self.config.news_path()));
+        tokio::fs::create_dir_all(news_path.as_path()).await?;
 
         match issues {
             // The issues range.
             twir::Issues::Range(min_number, max_number) => {
-                let errors: Vec<_> = join_all(
-                    (*min_number..=*max_number)
-                        .zip((*min_number..=*max_number).map(|_| notes.clone()))
-                        .map(|(number, cloned)| {
-                            self.grab_twir_note(number, cloned, &news_path, update_daily)
-                        }),
-                )
-                .await
-                .into_iter()
-                .filter_map(|r| r.err())
-                .collect();
+                let errors = stream::iter(*min_number..=*max_number)
+                    .zip(stream::iter(repeat_with(|| {
+                        (notes.clone(), news_path.clone())
+                    })))
+                    .then(|(number, (notes, news_path))| async move {
+                        self.grab_twir_note(number, notes, news_path.as_path(), update_daily)
+                            .await
+                    })
+                    .filter_map(|r| async move { r.err() })
+                    .collect::<Vec<_>>()
+                    .await;
 
                 if !errors.is_empty() {
                     return Err(Error::MultipleExecutorsError(errors));
