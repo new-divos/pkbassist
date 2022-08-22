@@ -7,6 +7,9 @@ use thiserror::Error;
 ///
 #[derive(Debug, Error)]
 pub enum Error {
+    #[error("application initialization error")]
+    AppInitError,
+
     #[error("cannot find configuration file")]
     CannotFindConfig,
 
@@ -51,4 +54,10 @@ pub enum Error {
 
     #[error("configuration serialization error {0}")]
     ConfigSerializeError(#[from] toml::ser::Error),
+
+    #[error("logger initialization error {0}")]
+    InitLoggerError(#[from] fern::InitError),
+
+    #[error("set logger error {0}")]
+    SetLoggerError(#[from] log::SetLoggerError),
 }

@@ -1,17 +1,21 @@
 use clap::Parser;
 
-use nta::{application::Application, cli::Arguments, config::Config};
+use nta::{
+    application::Application,
+    cli::Arguments,
+    config::{Config, Options},
+    error::Error,
+};
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    env_logger::init();
-
+async fn main() -> Result<(), Error> {
     let args = Arguments::parse();
+    let options = Options::new().await?;
 
-    let config = Config::new().await?;
+    Application::setup_logger(&args, &options)?;
+
+    let config = Config::new(&options).await?;
     let app = Application::new(config);
 
-    app.run(&args).await?;
-
-    Ok(())
+    app.run(&args).await
 }

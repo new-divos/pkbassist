@@ -1,19 +1,25 @@
 use clap::{Parser, Subcommand};
 
-use crate::application::twir;
+use crate::application::{twir, Application};
 
 ///
 /// The application arguments.
 ///
 #[derive(Debug, Parser)]
 #[clap(
-    author = "Roman A. Voronkin",
+    author = Application::AUTHOR,
     version,
-    about = "A Very simple Notes Attendant",
+    about = Application::DESCRIPTION,
     long_about = None,
 )]
 #[clap(propagate_version = true)]
 pub struct Arguments {
+    ///
+    /// The verbosity level.
+    ///
+    #[clap(short = 'v', long = "verbose", parse(from_occurrences))]
+    pub(crate) verbosity: i32,
+
     ///
     /// The application command.
     ///
@@ -28,25 +34,25 @@ pub struct Arguments {
 #[non_exhaustive]
 pub enum Command {
     ///
-    /// Repair notes set.
+    /// Repair the notes set.
     ///
     Repair {
         ///
         /// Repair wiki references.
         ///
-        #[clap(long = "wiki-refs", required = false, takes_value = false)]
+        #[clap(long = "wiki-refs", parse(from_flag))]
         wiki_refs: bool,
 
         ///
         /// Remove unused files.
         ///
-        #[clap(long = "remove-unused-files", required = false, takes_value = false)]
+        #[clap(long = "remove-unused-files", parse(from_flag))]
         remove_unused_files: bool,
 
         ///
         /// Rename attached files.
         ///
-        #[clap(long = "rename-files", required = false, takes_value = false)]
+        #[clap(long = "rename-files", parse(from_flag))]
         rename_files: bool,
     },
 
@@ -81,12 +87,7 @@ pub enum Note {
         ///
         /// Update daily note in notes set.
         ///
-        #[clap(
-            short = 'd',
-            long = "update-daily",
-            required = false,
-            takes_value = false
-        )]
+        #[clap(short = 'd', long = "update-daily", parse(from_flag))]
         update_daily: bool,
     },
 
@@ -104,12 +105,7 @@ pub enum Note {
         ///
         /// Update daily note in notes set.
         ///
-        #[clap(
-            short = 'd',
-            long = "update-daily",
-            required = false,
-            takes_value = false
-        )]
+        #[clap(short = 'd', long = "update-daily", parse(from_flag))]
         update_daily: bool,
     },
 }

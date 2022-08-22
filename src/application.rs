@@ -1,14 +1,14 @@
 use std::{
     collections::{HashMap, HashSet},
     ffi::OsStr,
-    io::Cursor,
+    io::{self, Cursor},
     iter::repeat_with,
     path::{Path, PathBuf},
     sync::Arc,
 };
 
 use futures::stream::{self, StreamExt};
-use prettytable::{cell, row, Table};
+use prettytable::{row, Table};
 use regex::Regex;
 use tokio::{
     fs::{self, File},
@@ -20,7 +20,7 @@ use walkdir::WalkDir;
 
 use crate::{
     cli::{Arguments, Command, Info, Note},
-    config::Config,
+    config::{Config, Options},
     error::Error,
 };
 
@@ -37,11 +37,80 @@ pub struct Application {
 }
 
 impl Application {
+    pub(crate) const QUALIFIER: &'static str = "ru";
+    pub(crate) const AUTHOR: &'static str = "new-divos";
+    pub(crate) const NAME: &'static str = "nta";
+    pub(crate) const DESCRIPTION: &'static str = "A Very simple Notes Attendant";
+
     ///
     /// Create command line application with configuration.
     ///
     pub fn new(config: Config) -> Self {
         Self { config }
+    }
+
+    ///
+    /// Setup the application logger.
+    ///
+    pub fn setup_logger(args: &Arguments, options: &Options) -> Result<(), Error> {
+        let mut base_config = fern::Dispatch::new();
+
+        base_config = match args.verbosity {
+            0 => {
+                // Let's say we depend on something which whose "info" level messages are too
+                // verbose to include in end-user output. If we don't need them,
+                // let's not include them.
+                base_config
+                    .level(log::LevelFilter::Info)
+                    .level_for("overly-verbose-target", log::LevelFilter::Warn)
+            }
+            1 => base_config
+                .level(log::LevelFilter::Debug)
+                .level_for("overly-verbose-target", log::LevelFilter::Info),
+            2 => base_config.level(log::LevelFilter::Debug),
+            _ => base_config.level(log::LevelFilter::Trace), // 3 or more
+        };
+
+        // Separate file config so we can include year, month and day in file logs
+        let file_config = fern::Dispatch::new()
+            .format(|out, message, record| {
+                out.finish(format_args!(
+                    "{}[{}][{}] {}",
+                    chrono::Local::now().format("[%Y-%m-%d][%H:%M:%S]"),
+                    record.target(),
+                    record.level(),
+                    message
+                ))
+            })
+            .chain(fern::log_file(options.log_file())?);
+
+        let stdout_config = fern::Dispatch::new()
+            .format(|out, message, record| {
+                // special format for debug messages coming from our own crate.
+                if record.level() > log::LevelFilter::Info && record.target() == "nta" {
+                    out.finish(format_args!(
+                        "---\nDEBUG: {}: {}\n---",
+                        chrono::Local::now().format("%H:%M:%S"),
+                        message
+                    ))
+                } else {
+                    out.finish(format_args!(
+                        "[{}][{}][{}] {}",
+                        chrono::Local::now().format("%H:%M"),
+                        record.target(),
+                        record.level(),
+                        message
+                    ))
+                }
+            })
+            .chain(io::stdout());
+
+        base_config
+            .chain(file_config)
+            .chain(stdout_config)
+            .apply()?;
+
+        Ok(())
     }
 
     ///
@@ -115,7 +184,7 @@ impl Application {
             })
             .zip(stream::iter(repeat_with(|| re.clone())))
             .then(|(e, re)| async move {
-                log::info!("Start processing of the file \"{}\"", e.path().display());
+                log::trace!("Start processing of the file \"{}\"", e.path().display());
                 let mut buffer = String::new();
                 {
                     let mut file = File::open(e.path()).await?;
@@ -128,7 +197,7 @@ impl Application {
                     file.write_all(content.as_bytes()).await?;
                 }
 
-                log::info!("Finish processing of the file \"{}\"", e.path().display());
+                log::trace!("Finish processing of the file \"{}\"", e.path().display());
                 Ok(()) as Result<(), Error>
             })
             .filter_map(|r| async move { r.err() })
@@ -178,7 +247,7 @@ impl Application {
             })
             .zip(stream::iter(repeat_with(|| files.clone())))
             .then(|(e, files)| async move {
-                log::info!("Start processing of the file \"{}\"", e.path().display());
+                log::trace!("Start processing of the file \"{}\"", e.path().display());
                 let mut content = String::new();
                 {
                     let mut file = File::open(e.path()).await?;
@@ -193,7 +262,7 @@ impl Application {
                 }
                 links.shrink_to_fit();
 
-                log::info!("Finish processing of the file \"{}\"", e.path().display());
+                log::trace!("Finish processing of the file \"{}\"", e.path().display());
                 Ok(links) as Result<Vec<String>, Error>
             })
             .collect::<Vec<_>>()
@@ -295,7 +364,7 @@ impl Application {
             })
             .zip(stream::iter(repeat_with(|| files.clone())))
             .then(|(e, files)| async move {
-                log::info!("Start processing of the file \"{}\"", e.path().display());
+                log::trace!("Start processing of the file \"{}\"", e.path().display());
                 let mut content = String::new();
                 {
                     let mut file = File::open(e.path()).await?;
@@ -315,7 +384,7 @@ impl Application {
                     file.write_all(content.as_bytes()).await?;
                 }
 
-                log::info!("Finish processing of the file \"{}\"", e.path().display());
+                log::trace!("Finish processing of the file \"{}\"", e.path().display());
                 Ok(()) as Result<(), Error>
             })
             .filter_map(|r| async move { r.err() })
@@ -378,7 +447,7 @@ impl Application {
                     let mut file = File::create(new_image_path.as_path()).await?;
                     let mut content = Cursor::new(response.bytes().await?);
                     tokio::io::copy(&mut content, &mut file).await?;
-                    log::info!(
+                    log::trace!(
                         "The image was downloaded from {} into the file \"{}\"",
                         image_url,
                         new_image_path.display()
@@ -443,7 +512,7 @@ impl Application {
         {
             let mut file = File::create(note_path.as_path()).await?;
             file.write_all(content.as_bytes()).await?;
-            log::info!(
+            log::trace!(
                 "The Astronomy Picture of the Day note \"{}\" has been created",
                 note_path.display()
             );
@@ -467,7 +536,7 @@ impl Application {
             {
                 let mut file = File::create(daily_path.as_path()).await?;
                 file.write_all(buffer.as_bytes()).await?;
-                log::info!(
+                log::trace!(
                     "The daily note \"{}\" has been updated",
                     daily_path.display()
                 );
@@ -537,7 +606,7 @@ impl Application {
         {
             let mut file = File::create(note_path.as_path()).await?;
             file.write_all(content.as_bytes()).await?;
-            log::info!(
+            log::trace!(
                 "The This Weel in Rust note \"{}\" has been created",
                 note_path.display()
             );
@@ -561,7 +630,7 @@ impl Application {
             {
                 let mut file = File::create(daily_path.as_path()).await?;
                 file.write_all(buffer.as_bytes()).await?;
-                log::info!(
+                log::trace!(
                     "The daily note \"{}\" has been updated",
                     daily_path.display()
                 );

@@ -1,16 +1,80 @@
 use std::{
     borrow::Cow,
+    io::Write,
     path::{Path, PathBuf},
 };
 
+use directories::ProjectDirs;
 use serde::{Deserialize, Serialize};
 use tokio::{
     fs::{self, File},
     io::{AsyncReadExt, AsyncWriteExt},
 };
 
-use crate::application::apod;
+use crate::application::{apod, Application};
 use crate::error::Error;
+
+///
+/// The application options.
+///
+#[derive(Debug)]
+pub struct Options {
+    ///
+    /// The configuration file path.
+    ///
+    config_file: PathBuf,
+
+    ///
+    /// The log file path.
+    ///
+    log_file: PathBuf,
+}
+
+impl Options {
+    ///
+    /// The new instance of the application options.
+    ///
+    pub async fn new() -> Result<Self, Error> {
+        let project_dirs = ProjectDirs::from(
+            Application::QUALIFIER,
+            Application::AUTHOR,
+            Application::NAME,
+        )
+        .ok_or(Error::AppInitError)?;
+
+        if !project_dirs.config_dir().exists() {
+            fs::create_dir_all(project_dirs.config_dir()).await?;
+        }
+        let config_file = project_dirs.config_dir().join("nta.toml");
+
+        let log_path = project_dirs.data_local_dir().join("log");
+        if !log_path.exists() {
+            fs::create_dir_all(log_path.as_path()).await?;
+        }
+        let log_file = log_path.join("nta.log");
+
+        Ok(Self {
+            config_file,
+            log_file,
+        })
+    }
+
+    ///
+    /// Get the configuration file path.
+    ///
+    #[inline]
+    pub fn config_file(&self) -> &Path {
+        self.config_file.as_path()
+    }
+
+    ///
+    /// Get the log file path.
+    ///
+    #[inline]
+    pub fn log_file(&self) -> &Path {
+        self.log_file.as_path()
+    }
+}
 
 ///
 /// The notes application configuration.
@@ -82,22 +146,52 @@ impl Config {
     ///
     /// New instance of the application configuration.
     ///
-    pub async fn new() -> Result<Self, Error> {
-        let config_path = dirs::config_dir().ok_or(Error::CannotFindConfig)?;
-        if !config_path.exists() || !config_path.is_dir() {
-            return Err(Error::CannotFindConfig);
-        }
+    pub async fn new(options: &Options) -> Result<Self, Error> {
+        if !options.config_file().exists() {
+            let mut notes_root = String::new();
+            print!("Enter the notes root path: ");
+            std::io::stdout().flush()?;
+            let _ = std::io::stdin().read_line(&mut notes_root).unwrap();
+            let notes_root = PathBuf::from(notes_root.trim());
 
-        let config_path = config_path.join("nta");
-        fs::create_dir_all(config_path.as_path()).await?;
-        let config_path = config_path.join("config.toml");
-        if !config_path.exists() || !config_path.is_file() {
-            Self::create_config(config_path.as_path()).await?;
+            let files_path = notes_root.join("Files");
+            let daily_path = notes_root.join("Daily");
+            let base_path = notes_root.join("Base");
+            let news_path = base_path.join("News");
+
+            let mut apod_key = String::new();
+            print!("Enter the NASA Astronomy Picture of the Day API key: ");
+            std::io::stdout().flush()?;
+            let _ = std::io::stdin().read_line(&mut apod_key).unwrap();
+            let apod_key = apod_key.trim().to_owned();
+
+            let config = Self {
+                notes: NotesConfig {
+                    root: notes_root,
+                    files_path: Some(files_path),
+                    daily_path: Some(daily_path),
+                    news_path: Some(news_path),
+                },
+                nasa_apod: NASAAPoDAPIConfig {
+                    key: Some(apod_key),
+                    version: apod::Version::V1_0,
+                },
+            };
+
+            let content = toml::to_string(&config)?;
+            {
+                let mut file = File::create(options.config_file()).await?;
+                file.write_all(content.as_bytes()).await?;
+                log::info!(
+                    "The configuration file \"{}\" has been created",
+                    options.config_file().display()
+                );
+            }
         }
 
         let mut buffer = String::new();
         {
-            let mut file = File::open(config_path.as_path()).await?;
+            let mut file = File::open(options.config_file()).await?;
             file.read_to_string(&mut buffer).await?;
         }
 
@@ -107,51 +201,6 @@ impl Config {
         }
 
         Ok(config)
-    }
-
-    ///
-    /// Create the configuration file.
-    ///
-    async fn create_config(path: &Path) -> Result<(), Error> {
-        let mut notes_root = String::new();
-        print!("Enter the notes root path: ");
-        let _ = std::io::stdin().read_line(&mut notes_root).unwrap();
-        let notes_root = PathBuf::from(notes_root.trim());
-
-        let files_path = notes_root.join("Files");
-        let daily_path = notes_root.join("Daily");
-        let base_path = notes_root.join("Base");
-        let news_path = base_path.join("News");
-
-        let mut apod_key = String::new();
-        print!("Enter the NASA Astronomy Picture of the Day API key: ");
-        let _ = std::io::stdin().read_line(&mut apod_key).unwrap();
-        let apod_key = apod_key.trim().to_owned();
-
-        let config = Self {
-            notes: NotesConfig {
-                root: notes_root,
-                files_path: Some(files_path),
-                daily_path: Some(daily_path),
-                news_path: Some(news_path),
-            },
-            nasa_apod: NASAAPoDAPIConfig {
-                key: Some(apod_key),
-                version: apod::Version::V1_0,
-            },
-        };
-
-        let content = toml::to_string(&config)?;
-        {
-            let mut file = File::create(path).await?;
-            file.write_all(content.as_bytes()).await?;
-            log::info!(
-                "The configuration file \"{}\" has been created",
-                path.display()
-            );
-        }
-
-        Ok(())
     }
 
     ///
@@ -188,7 +237,7 @@ impl Config {
 
     ///
     /// Get the news directory of the notes set.
-    /// 
+    ///
     #[inline]
     pub fn news_path(&self) -> Cow<Path> {
         if let Some(ref path) = self.notes.news_path {
