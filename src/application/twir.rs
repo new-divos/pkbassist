@@ -54,7 +54,12 @@ impl Notes {
     /// Select all This Week in Rust issues.
     ///
     pub(crate) async fn select() -> Result<Notes, Error> {
+        log::trace!(
+            "Retriving the \"This Week in Rust\" issues list from the \"{}\"",
+            ARCHIVE_URL
+        );
         let html_content = reqwest::get(ARCHIVE_URL).await?.text().await?;
+        log::trace!("Parsing the \"This Week in Rust\" issues list");
         let document = scraper::Html::parse_document(&html_content);
 
         let row_selector = scraper::Selector::parse("div.row .post-title").unwrap();
@@ -83,6 +88,7 @@ impl Notes {
         notes.sort_by_key(|e| std::cmp::Reverse(e.datetime()));
         notes.shrink_to_fit();
 
+        log::trace!("Creating the \"This Week in Rust\" issues info list");
         Ok(Notes { notes })
     }
 

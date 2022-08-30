@@ -53,26 +53,7 @@ impl Application {
     /// Setup the application logger.
     ///
     pub fn setup_logger(args: &Arguments, options: &Options) -> Result<(), Error> {
-        let mut base_config = fern::Dispatch::new();
-
-        base_config = match args.verbosity {
-            0 => {
-                // Let's say we depend on something which whose "info" level messages are too
-                // verbose to include in end-user output. If we don't need them,
-                // let's not include them.
-                base_config
-                    .level(log::LevelFilter::Info)
-                    .level_for("overly-verbose-target", log::LevelFilter::Warn)
-            }
-            1 => base_config
-                .level(log::LevelFilter::Debug)
-                .level_for("overly-verbose-target", log::LevelFilter::Info),
-            2 => base_config.level(log::LevelFilter::Debug),
-            _ => base_config.level(log::LevelFilter::Trace), // 3 or more
-        };
-
-        // Separate file config so we can include year, month and day in file logs
-        let file_config = fern::Dispatch::new()
+        fern::Dispatch::new()
             .format(|out, message, record| {
                 out.finish(format_args!(
                     "{}[{}][{}] {}",
@@ -82,32 +63,36 @@ impl Application {
                     message
                 ))
             })
-            .chain(fern::log_file(options.log_file())?);
+            .chain(
+                fern::Dispatch::new()
+                    .level(log::LevelFilter::Warn)
+                    .level_for("nta", log::LevelFilter::Info)
+                    .chain(io::stdout()),
+            )
+            .chain({
+                let mut file_config = fern::Dispatch::new();
 
-        let stdout_config = fern::Dispatch::new()
-            .format(|out, message, record| {
-                // special format for debug messages coming from our own crate.
-                if record.level() > log::LevelFilter::Info && record.target() == "nta" {
-                    out.finish(format_args!(
-                        "---\nDEBUG: {}: {}\n---",
-                        chrono::Local::now().format("%H:%M:%S"),
-                        message
-                    ))
-                } else {
-                    out.finish(format_args!(
-                        "[{}][{}][{}] {}",
-                        chrono::Local::now().format("%H:%M"),
-                        record.target(),
-                        record.level(),
-                        message
-                    ))
-                }
+                file_config = match args.verbosity {
+                    0 => file_config
+                        .level(log::LevelFilter::Warn)
+                        .level_for("nta", log::LevelFilter::Info),
+                    1 => file_config
+                        .level(log::LevelFilter::Info)
+                        .level_for("nta", log::LevelFilter::Debug),
+                    2 => file_config
+                        .level(log::LevelFilter::Info)
+                        .level_for("nta", log::LevelFilter::Trace),
+                    3 => file_config.level(log::LevelFilter::Debug),
+                    _ => file_config.level(log::LevelFilter::Trace),
+                };
+
+                file_config.chain(fern::log_file(options.log_file())?)
             })
-            .chain(io::stdout());
-
-        base_config
-            .chain(file_config)
-            .chain(stdout_config)
+            .chain(
+                fern::Dispatch::new()
+                    .level(log::LevelFilter::Error)
+                    .chain(io::stderr()),
+            )
             .apply()?;
 
         Ok(())
