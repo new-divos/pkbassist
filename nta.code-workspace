@@ -16,6 +16,7 @@
 
     "editor.minimap.enabled": false,
     "rust-analyzer.rustfmt.rangeFormatting.enable": true,
+    "task.allowAutomaticTasks": "on",
 
     "workbench.colorCustomizations": {
       "activityBar.activeBackground": "#e2814d",

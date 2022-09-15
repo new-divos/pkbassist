@@ -1,3 +1,4 @@
+use chrono::Datelike;
 use clap::{Parser, Subcommand};
 
 use crate::application::{twir, Application};
@@ -71,6 +72,14 @@ pub enum Command {
         #[clap(subcommand)]
         info: Info,
     },
+
+    ///
+    /// Add the additional information to the notes set.
+    ///
+    Add {
+        #[clap(subcommand)]
+        annex: Annex,
+    },
 }
 
 ///
@@ -126,5 +135,38 @@ pub enum Info {
         ///
         #[clap(short = 'l', long = "last", required = false, takes_value = false)]
         last: bool,
+    },
+}
+
+///
+/// The application add command object.
+///
+#[derive(Debug, Subcommand)]
+#[non_exhaustive]
+pub enum Annex {
+    ///
+    /// Add the calendar to the monthly note.
+    ///
+    #[clap(name = "calendar")]
+    Calendar {
+        ///
+        /// The year number.
+        ///
+        #[clap(
+            default_value_t = chrono::offset::Local::today().year(), 
+            short = 'y', 
+            long = "year"
+        )]
+        year: i32,
+
+        ///
+        /// The month number.
+        /// 
+        #[clap(
+            default_value_t = chrono::offset::Local::today().month(), 
+            short = 'm', 
+            long = "month"
+        )]
+        month: u32,
     },
 }

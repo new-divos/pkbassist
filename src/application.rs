@@ -7,6 +7,7 @@ use std::{
     sync::Arc,
 };
 
+use chrono::{Datelike, NaiveDate};
 use futures::stream::{self, StreamExt};
 use prettytable::{row, Table};
 use regex::Regex;
@@ -19,7 +20,7 @@ use uuid::Uuid;
 use walkdir::WalkDir;
 
 use crate::{
-    cli::{Arguments, Command, Info, Note},
+    cli::{Annex, Arguments, Command, Info, Note},
     config::{Config, Options},
     error::Error,
 };
@@ -138,6 +139,12 @@ impl Application {
             Command::Show { ref info } => match info {
                 // Show This Week in Rust issues.
                 Info::TWiR { last } => self.show_twir(*last).await?,
+            },
+
+            // Add the additional information to the notes set.
+            Command::Add { ref annex } => match annex {
+                // Add the calendar to the monthly note.
+                Annex::Calendar { year, month } => self.add_calendar(*year, *month).await?,
             },
         }
 
@@ -688,6 +695,78 @@ impl Application {
 
         // Print the table to stdout
         table.printstd();
+
+        Ok(())
+    }
+
+    ///
+    /// Add the calendar to the monthly note.
+    ///
+    async fn add_calendar(&self, year: i32, month: u32) -> Result<(), Error> {
+        if year <= 0 {
+            return Err(Error::IllegalYearNumber(year));
+        }
+        if !(1..=12).contains(&month) {
+            return Err(Error::IllegalMonthNumber(month));
+        }
+
+        let monthly_path = self
+            .config
+            .daily_path()
+            .join(format!("{}-{:02}.md", year, month));
+        if !monthly_path.is_file() {
+            return Err(Error::IllegalPath(format!("{}", monthly_path.display())));
+        }
+
+        let mut calendar = vec![
+            "| Пн | Вт | Ср | Чт | Пт | Сб | Вс |".to_string(),
+            "|:--:|:--:|:--:|:--:|:--:|:--:|:--:|".to_string(),
+        ];
+
+        let mut current = NaiveDate::from_ymd(year, month, 1);
+        let mut n = current.weekday().num_days_from_monday() as usize;
+
+        let mut row = "|".to_string();
+        row.push_str("    |".repeat(n).as_str());
+
+        loop {
+            n += 1;
+            row.push_str(
+                format!(" [[{}\\|{}]] |", current.format("%Y-%m-%d"), current.day()).as_str(),
+            );
+            if n > 6 {
+                calendar.push(row);
+                row = "|".to_string();
+                n = 0;
+            }
+
+            let prev = current;
+            current = current.succ();
+            if current.month() != month {
+                n = prev.weekday().num_days_from_monday() as usize;
+                row.push_str("    |".repeat(6 - n).as_str());
+                calendar.push(row);
+                break;
+            }
+        }
+
+        let mut buffer = String::new();
+        {
+            let mut file = File::open(monthly_path.as_path()).await?;
+            file.read_to_string(&mut buffer).await?;
+        }
+
+        buffer.push_str(format!("\n\n{}\n", calendar.join("\n")).as_str());
+
+        // Write updated content of the monthly note.
+        {
+            let mut file = File::create(monthly_path.as_path()).await?;
+            file.write_all(buffer.as_bytes()).await?;
+            log::trace!(
+                "The monthly note \"{}\" has been updated",
+                monthly_path.display()
+            );
+        }
 
         Ok(())
     }
