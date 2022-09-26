@@ -412,8 +412,8 @@ impl Application {
 
         let files_path = self.config.files_path();
         tokio::fs::create_dir_all(&files_path).await?;
-        let news_path = self.config.news_path();
-        tokio::fs::create_dir_all(&news_path).await?;
+        let apod_path = self.config.apod_path();
+        tokio::fs::create_dir_all(&apod_path).await?;
 
         let media_ref: String;
         match response.media_type() {
@@ -500,7 +500,7 @@ impl Application {
         }
 
         let content = content.join("\n");
-        let note_path = news_path.join(format!("APoD {}.md", date));
+        let note_path = apod_path.join(format!("APoD {}.md", date));
         {
             let mut file = File::create(note_path.as_path()).await?;
             file.write_all(content.as_bytes()).await?;
@@ -638,18 +638,18 @@ impl Application {
     async fn grab_twir(&self, issues: &twir::Issues, update_daily: bool) -> Result<(), Error> {
         let notes = Arc::new(twir::Notes::select().await?);
 
-        let news_path = Arc::new(PathBuf::from(self.config.news_path()));
-        tokio::fs::create_dir_all(news_path.as_path()).await?;
+        let twir_path = Arc::new(PathBuf::from(self.config.twir_path()));
+        tokio::fs::create_dir_all(twir_path.as_path()).await?;
 
         match issues {
             // The issues range.
             twir::Issues::Range(min_number, max_number) => {
                 let errors = stream::iter(*min_number..=*max_number)
                     .zip(stream::iter(repeat_with(|| {
-                        (notes.clone(), news_path.clone())
+                        (notes.clone(), twir_path.clone())
                     })))
-                    .then(|(number, (notes, news_path))| async move {
-                        self.grab_twir_note(number, notes, news_path.as_path(), update_daily)
+                    .then(|(number, (notes, twir_path))| async move {
+                        self.grab_twir_note(number, notes, twir_path.as_path(), update_daily)
                             .await
                     })
                     .filter_map(|r| async move { r.err() })
@@ -663,7 +663,7 @@ impl Application {
 
             // The single issue.
             twir::Issues::Single(number) => {
-                self.grab_twir_note(*number, notes.clone(), &news_path, update_daily)
+                self.grab_twir_note(*number, notes.clone(), &twir_path, update_daily)
                     .await?;
             }
         }

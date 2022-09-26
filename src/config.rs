@@ -100,10 +100,16 @@ pub(crate) struct NotesConfig {
     daily_path: Option<PathBuf>,
 
     ///
-    /// The news directory of the notes set.
+    /// The Astronomy Picture of the Day directory of the notes set.
     ///
-    #[serde(rename = "News")]
-    news_path: Option<PathBuf>,
+    #[serde(rename = "APoD")]
+    apod_path: Option<PathBuf>,
+
+    ///
+    /// The This Day in Rust directory of the notes set.
+    ///
+    #[serde(rename = "TWiR")]
+    twir_path: Option<PathBuf>,
 }
 
 ///
@@ -157,7 +163,14 @@ impl Config {
             let files_path = notes_root.join("Files");
             let daily_path = notes_root.join("Daily");
             let base_path = notes_root.join("Base");
-            let news_path = base_path.join("News");
+
+            let science_path = base_path.join("Science");
+            let astronomy_path = science_path.join("Astronomy");
+            let apod_path = astronomy_path.join("APoD");
+
+            let development_path = base_path.join("Development");
+            let rust_path = development_path.join("Rust");
+            let twir_path = rust_path.join("TWiR");
 
             let mut apod_key = String::new();
             print!("Enter the NASA Astronomy Picture of the Day API key: ");
@@ -170,7 +183,8 @@ impl Config {
                     root: notes_root,
                     files_path: Some(files_path),
                     daily_path: Some(daily_path),
-                    news_path: Some(news_path),
+                    apod_path: Some(apod_path),
+                    twir_path: Some(twir_path),
                 },
                 nasa_apod: NASAAPoDAPIConfig {
                     key: Some(apod_key),
@@ -236,14 +250,40 @@ impl Config {
     }
 
     ///
-    /// Get the news directory of the notes set.
+    /// Get the Astronomy Picture of the Day directory of the notes set.
     ///
     #[inline]
-    pub fn news_path(&self) -> Cow<Path> {
-        if let Some(ref path) = self.notes.news_path {
+    pub fn apod_path(&self) -> Cow<Path> {
+        if let Some(ref path) = self.notes.apod_path {
             Cow::Borrowed(path.as_path())
         } else {
-            Cow::Owned(self.notes.root.join("Base").join("News"))
+            Cow::Owned(
+                self.notes
+                    .root
+                    .join("Base")
+                    .join("Science")
+                    .join("Astronomy")
+                    .join("APoD"),
+            )
+        }
+    }
+
+    ///
+    /// Get the This Week in Rust directory of the notes set.
+    ///
+    #[inline]
+    pub fn twir_path(&self) -> Cow<Path> {
+        if let Some(ref path) = self.notes.twir_path {
+            Cow::Borrowed(path.as_path())
+        } else {
+            Cow::Owned(
+                self.notes
+                    .root
+                    .join("Base")
+                    .join("Development")
+                    .join("Rust")
+                    .join("TWiR"),
+            )
         }
     }
 
