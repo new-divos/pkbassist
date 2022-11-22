@@ -131,7 +131,7 @@ pub enum Info {
     #[clap(name = "twir")]
     TWiR {
         ///
-        /// Show only the last issue.
+        /// Show the only last issue.
         ///
         #[clap(short = 'l', long = "last", required = false, takes_value = false)]
         last: bool,
@@ -168,5 +168,35 @@ pub enum Annex {
             long = "month"
         )]
         month: u32,
+    },
+
+    ///
+    /// Add the reference bar to the note.
+    /// 
+    #[clap (name = "refbar")]
+    RefBar {
+        ///
+        /// The note name.
+        /// 
+        #[clap(required = true, takes_value = true, short = 'n', long = "note")]
+        note: String,
+
+        ///
+        /// The references list.
+        /// 
+        #[clap(required = false, short = 'r', long = "ref")]
+        references: Vec<String>,
+
+        ///
+        /// The spacing between references.
+        /// 
+        #[clap(required = false, long = "spacing")]
+        spacing: Option<usize>,
+
+        ///
+        /// The leader of the reference bar.
+        /// 
+        #[clap(required = false, long = "leader")]
+        leader: Option<String>,
     },
 }

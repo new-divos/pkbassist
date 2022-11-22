@@ -131,6 +131,22 @@ pub(crate) struct NASAAPoDAPIConfig {
 }
 
 ///
+/// The reference bar (refbar) configuration.
+///
+#[derive(Debug, Serialize, Deserialize)]
+pub(crate) struct RefBarConfig {
+    ///
+    /// The spacing between references.
+    ///
+    spacing: Option<usize>,
+
+    ///
+    /// The leader of the reference bar.
+    ///
+    leader: Option<String>,
+}
+
+///
 /// The application configuration.
 ///
 #[derive(Debug, Serialize, Deserialize)]

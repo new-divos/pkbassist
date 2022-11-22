@@ -145,6 +145,26 @@ impl Application {
             Command::Add { ref annex } => match annex {
                 // Add the calendar to the monthly note.
                 Annex::Calendar { year, month } => self.add_calendar(*year, *month).await?,
+
+                // Add the refbar to the note.
+                Annex::RefBar {
+                    note,
+                    references,
+                    spacing,
+                    leader,
+                } => {
+                    self.add_refbar(
+                        note.as_str(),
+                        references
+                            .iter()
+                            .map(AsRef::as_ref)
+                            .collect::<Vec<_>>()
+                            .as_slice(),
+                        spacing.unwrap_or(10),
+                        leader.as_deref().unwrap_or(""),
+                    )
+                    .await?
+                }
             },
         }
 
@@ -768,6 +788,19 @@ impl Application {
             );
         }
 
+        Ok(())
+    }
+
+    ///
+    /// Add the refbar to the note.
+    ///
+    async fn add_refbar(
+        &self,
+        note: &str,
+        refs: &[&str],
+        spacing: usize,
+        leader: &str,
+    ) -> Result<(), Error> {
         Ok(())
     }
 }
