@@ -109,6 +109,7 @@ impl Application {
                 wiki_refs,
                 remove_unused_files,
                 rename_files,
+                twir_issues,
             } => {
                 if wiki_refs {
                     self.repair_wiki_refs().await?;
@@ -120,6 +121,10 @@ impl Application {
 
                 if rename_files {
                     self.rename_attached_files().await?;
+                }
+
+                if twir_issues {
+                    self.repair_twir_issues().await?;
                 }
             }
 
@@ -172,7 +177,7 @@ impl Application {
     }
 
     ///
-    /// Repair wiki references.
+    /// Repair the wiki references.
     ///
     async fn repair_wiki_refs(&self) -> Result<(), Error> {
         let re = Arc::new(
@@ -224,7 +229,7 @@ impl Application {
     }
 
     ///
-    /// Remove unused files.
+    /// Remove the unused files.
     ///
     async fn remove_unused_files(&self) -> Result<(), Error> {
         let files = Arc::new(
@@ -323,7 +328,7 @@ impl Application {
     }
 
     ///
-    /// Rename attached files.
+    /// Rename the attached files.
     ///
     async fn rename_attached_files(&self) -> Result<(), Error> {
         let re = Arc::new(
@@ -413,6 +418,71 @@ impl Application {
                 .collect::<Vec<_>>()
                 .await,
         );
+
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(Error::MultipleExecutorsError(errors))
+        }
+    }
+
+    ///
+    /// Repair the This Week in Rust issues.
+    ///
+    async fn repair_twir_issues(&self) -> Result<(), Error> {
+        let re = Arc::new(Regex::new(r"^TWiR\s+(?P<number>\d+)$").unwrap());
+        let errors = stream::iter(WalkDir::new(self.config.twir_path()).into_iter())
+            .filter_map(|e| async move {
+                if let Ok(e) = e {
+                    if e.path().exists()
+                        && e.path().is_file()
+                        && e.path().extension().and_then(OsStr::to_str) == Some("md")
+                    {
+                        return Some(e);
+                    }
+                };
+
+                None
+            })
+            .zip(stream::iter(repeat_with(|| re.clone())))
+            .filter_map(|(e, re)| async move {
+                let stem = e.path().file_stem().and_then(OsStr::to_str);
+                if let Some(stem) = stem {
+                    if let Some(cap) = re.captures_iter(stem).next() {
+                        let new_path = self
+                            .config
+                            .twir_path()
+                            .join(format!("ISS.TWiR.{}-.md", &cap["number"]));
+                        return Some((e, new_path));
+                    }
+                }
+
+                None
+            })
+            .then(|(e, new_path)| async move {
+                log::trace!("Start processing of the file \"{}\"", e.path().display());
+
+                let mut content = String::new();
+                {
+                    let mut file = File::open(e.path()).await?;
+                    file.read_to_string(&mut content).await?;
+                }
+
+                let content = content
+                    .replace("type: news", "type: issue")
+                    .replace("news/twir", "issue/twir");
+                {
+                    let mut file = File::create(new_path).await?;
+                    file.write_all(content.as_bytes()).await?;
+                }
+                fs::remove_file(e.path()).await?;
+
+                log::trace!("Finish processing of the file \"{}\"", e.path().display());
+                Ok(()) as Result<(), Error>
+            })
+            .filter_map(|r| async move { r.err() })
+            .collect::<Vec<_>>()
+            .await;
 
         if errors.is_empty() {
             Ok(())
@@ -796,10 +866,10 @@ impl Application {
     ///
     async fn add_refbar(
         &self,
-        note: &str,
-        refs: &[&str],
-        spacing: usize,
-        leader: &str,
+        _note: &str,
+        _refs: &[&str],
+        _spacing: usize,
+        _leader: &str,
     ) -> Result<(), Error> {
         Ok(())
     }

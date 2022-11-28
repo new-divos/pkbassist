@@ -39,22 +39,28 @@ pub enum Command {
     ///
     Repair {
         ///
-        /// Repair wiki references.
+        /// Repair the wiki references.
         ///
         #[clap(long = "wiki-refs", parse(from_flag))]
         wiki_refs: bool,
 
         ///
-        /// Remove unused files.
+        /// Remove the unused files.
         ///
         #[clap(long = "remove-unused-files", parse(from_flag))]
         remove_unused_files: bool,
 
         ///
-        /// Rename attached files.
+        /// Rename the attached files.
         ///
         #[clap(long = "rename-files", parse(from_flag))]
         rename_files: bool,
+
+        ///
+        /// Repair the This Week in Rust issues.
+        /// 
+        #[clap(long = "twir-issues", parse(from_flag))]
+        twir_issues: bool,
     },
 
     ///
