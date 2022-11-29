@@ -110,6 +110,7 @@ impl Application {
                 remove_unused_files,
                 rename_files,
                 twir_issues,
+                apod_issues,
             } => {
                 if wiki_refs {
                     self.repair_wiki_refs().await?;
@@ -125,6 +126,10 @@ impl Application {
 
                 if twir_issues {
                     self.repair_twir_issues().await?;
+                }
+
+                if apod_issues {
+                    self.repair_apod_issues().await?;
                 }
             }
 
@@ -351,8 +356,7 @@ impl Application {
                 })
                 .zip(stream::iter(repeat_with(|| re.clone())))
                 .filter_map(|(e, re)| async move {
-                    let stem = e.path().file_stem().and_then(OsStr::to_str);
-                    if let Some(stem) = stem {
+                    if let Some(stem) = e.path().file_stem().and_then(OsStr::to_str) {
                         if !re.is_match(stem) {
                             if let Some(entry) = entry::FileEntry::new(e.path(), Uuid::new_v4()) {
                                 return Some((stem.to_string(), entry));
@@ -446,20 +450,21 @@ impl Application {
             })
             .zip(stream::iter(repeat_with(|| re.clone())))
             .filter_map(|(e, re)| async move {
-                let stem = e.path().file_stem().and_then(OsStr::to_str);
-                if let Some(stem) = stem {
+                if let Some(stem) = e.path().file_stem().and_then(OsStr::to_str) {
                     if let Some(cap) = re.captures_iter(stem).next() {
+                        let number = &cap["number"];
                         let new_path = self
                             .config
                             .twir_path()
-                            .join(format!("ISS.TWiR.{}-.md", &cap["number"]));
-                        return Some((e, new_path));
+                            .join(format!("ISS.TWiR.{}-.md", number));
+                        let number = number.parse::<i32>().ok()?;
+                        return Some((e, new_path, number));
                     }
                 }
 
                 None
             })
-            .then(|(e, new_path)| async move {
+            .then(|(e, new_path, number)| async move {
                 log::trace!("Start processing of the file \"{}\"", e.path().display());
 
                 let mut content = String::new();
@@ -468,9 +473,22 @@ impl Application {
                     file.read_to_string(&mut content).await?;
                 }
 
-                let content = content
+                let next = number + 1;
+                content = content
                     .replace("type: news", "type: issue")
-                    .replace("news/twir", "issue/twir");
+                    .replace("news/twir", "issue/twir")
+                    .replace(
+                        format!("TWiR {}", next).as_str(),
+                        format!("ISS.TWiR.{}-", next).as_str(),
+                    );
+
+                if number > 1 {
+                    let prev = number - 1;
+                    content = content.replace(
+                        format!("TWiR {}", prev).as_str(),
+                        format!("ISS.TWiR.{}", prev).as_str(),
+                    );
+                }
                 {
                     let mut file = File::create(new_path).await?;
                     file.write_all(content.as_bytes()).await?;
@@ -492,7 +510,104 @@ impl Application {
     }
 
     ///
-    /// Grab NASA Astronomy Picture of the Day.
+    /// Repair the Astronomy Picture of the Day issues.
+    ///
+    async fn repair_apod_issues(&self) -> Result<(), Error> {
+        let re = Arc::new(
+            Regex::new(r"^APoD\s+(?P<year>\d{1,4})-(?P<month>\d{1,2})-(?P<day>\d{1,2})$").unwrap(),
+        );
+        let errors = stream::iter(WalkDir::new(self.config.twir_path()).into_iter())
+            .filter_map(|e| async move {
+                if let Ok(e) = e {
+                    if e.path().exists()
+                        && e.path().is_file()
+                        && e.path().extension().and_then(OsStr::to_str) == Some("md")
+                    {
+                        return Some(e);
+                    }
+                };
+
+                None
+            })
+            .zip(stream::iter(repeat_with(|| re.clone())))
+            .filter_map(|(e, re)| async move {
+                if let Some(stem) = e.path().file_stem().and_then(OsStr::to_str) {
+                    if let Some(cap) = re.captures_iter(stem).next() {
+                        let year = &cap["year"];
+                        let month = &cap["month"];
+                        let day = &cap["day"];
+
+                        let new_path = self
+                            .config
+                            .apod_path()
+                            .join(format!("ISS.APoD.{}.{}.{}.md", year, month, day));
+                        let daily_path = self
+                            .config
+                            .daily_path()
+                            .join(format!("{}-{}-{}.md", year, month, day));
+
+                        return Some((e, new_path, daily_path));
+                    }
+                }
+
+                None
+            })
+            .then(|(e, new_path, daily_path)| async move {
+                log::trace!("Start processing of the file \"{}\"", e.path().display());
+                let mut content = String::new();
+                {
+                    let mut file = File::open(e.path()).await?;
+                    file.read_to_string(&mut content).await?;
+                }
+
+                content = content
+                    .replace("type: news", "type: issue")
+                    .replace("news/apod", "issue/apod")
+                    .replace("science/astronomy", "astronomy");
+                {
+                    let mut file = File::create(new_path.as_path()).await?;
+                    file.write_all(content.as_bytes()).await?;
+                }
+                fs::remove_file(e.path()).await?;
+
+                if daily_path.exists() && daily_path.is_file() {
+                    if let Some(old_stem) = e.path().file_stem().and_then(OsStr::to_str) {
+                        if let Some(new_stem) =
+                            new_path.as_path().file_stem().and_then(OsStr::to_str)
+                        {
+                            let mut content = String::new();
+                            {
+                                let mut file = File::open(daily_path.as_path()).await?;
+                                file.read_to_string(&mut content).await?;
+                            }
+
+                            content = content.replace(old_stem, new_stem);
+                            fs::remove_file(daily_path.as_path()).await?;
+
+                            {
+                                let mut file = File::create(daily_path.as_path()).await?;
+                                file.write_all(content.as_bytes()).await?;
+                            }
+                        }
+                    }
+                }
+
+                log::trace!("Finish processing of the file \"{}\"", e.path().display());
+                Ok(()) as Result<(), Error>
+            })
+            .filter_map(|r| async move { r.err() })
+            .collect::<Vec<_>>()
+            .await;
+
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(Error::MultipleExecutorsError(errors))
+        }
+    }
+
+    ///
+    /// Grab the NASA's Astronomy Picture of the Day issue.
     ///
     async fn grab_apod(&self, update_daily: bool) -> Result<(), Error> {
         let nasa_key = self.config.apod_key().ok_or(Error::IllegalNASAKey)?;
@@ -563,14 +678,15 @@ impl Application {
         }
 
         let date = response.date().format("%Y-%m-%d").to_string();
+        let file_date = response.date().format("%Y.%m.%d").to_string();
         let daily_path = self.config.daily_path().join(format!("{}.md", date));
 
         let mut content = vec![
-            "---\ntype: news".to_string(),
+            "---\ntype: issue".to_string(),
             format!("name: \"{}\"", response.title()),
             "issue: APoD".to_string(),
             format!("date: {}", date),
-            "tags:\n- news/apod\n- science/astronomy\n---\n".to_string(),
+            "tags:\n- issue/apod\n- astronomy\n---\n".to_string(),
             if update_daily && daily_path.exists() && daily_path.is_file() {
                 format!("[[{}]]\n", date)
             } else {
@@ -590,7 +706,7 @@ impl Application {
         }
 
         let content = content.join("\n");
-        let note_path = apod_path.join(format!("APoD {}.md", date));
+        let note_path = apod_path.join(format!("ISS.APoD.{}.md", file_date));
         {
             let mut file = File::create(note_path.as_path()).await?;
             file.write_all(content.as_bytes()).await?;
@@ -609,8 +725,8 @@ impl Application {
             }
 
             let line = format!(
-                "\n\n`rir:Star` [[APoD {}|Astronomy Picture of the Day]]\n",
-                date
+                "\n\n`rir:Star` [[ISS.APoD.{}|Astronomy Picture of the Day]]\n",
+                file_date
             );
             buffer.push_str(line.as_str());
 
@@ -652,8 +768,8 @@ impl Application {
         let date = note.datetime().format("%Y-%m-%d").to_string();
 
         let mut content = vec![
-            format!("---\ntype: news\nissue: {}", number),
-            format!("date: {}\ntags:\n- rust\n- news/twir\naliases:", date),
+            format!("---\ntype: issue\nissue: {}", number),
+            format!("date: {}\ntags:\n- rust\n- issue/twir\naliases:", date),
             format!("- \"{}\"", note.title()),
             format!("- \"TWiR {} This Week in Rust {}\"", date, number),
             format!("url: {}\n---\n", note.url()),
@@ -663,11 +779,11 @@ impl Application {
         if number > 1 {
             let prev = number - 1;
             content.push(format!(
-                "<< [[TWiR {0}|{0}]] | [[TWiR {1}|{1}]] >>\n",
+                "<< [[ISS.TWiR.{0}|{0}]] | [[ISS.TWiR.{1}-|{1}]] >>\n",
                 prev, next
             ));
         } else {
-            content.push(format!("| [[TWiR {0}|{0}]] >>\n", next));
+            content.push(format!("| [[ISS.TWiR.{0}|{0}]] >>\n", next));
         }
 
         let daily_path = self.config.daily_path().join(format!("{}.md", date));
@@ -684,7 +800,7 @@ impl Application {
         content.push(md_content);
 
         let content = content.join("\n");
-        let note_path = path.join(format!("TWiR {}.md", number));
+        let note_path = path.join(format!("ISS.TWiR.{}-.md", number));
         {
             let mut file = File::create(note_path.as_path()).await?;
             file.write_all(content.as_bytes()).await?;
@@ -703,7 +819,7 @@ impl Application {
             }
 
             let line = format!(
-                "\n\n`rir:Newspaper` [[Twir {0}|This Week in Rust {0}]]\n",
+                "\n\n`rir:Newspaper` [[ISS.TWiR.{0}|This Week in Rust {0}]]\n",
                 number
             );
             buffer.push_str(line.as_str());

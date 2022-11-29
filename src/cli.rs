@@ -61,6 +61,12 @@ pub enum Command {
         /// 
         #[clap(long = "twir-issues", parse(from_flag))]
         twir_issues: bool,
+
+        ///
+        /// Repair the Astronomy Picture of the Day issues.
+        /// 
+        #[clap(long = "apod-issues", parse(from_flag))]
+        apod_issues: bool,
     },
 
     ///
