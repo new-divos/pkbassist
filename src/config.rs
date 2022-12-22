@@ -1,6 +1,5 @@
 use std::{
     borrow::Cow,
-    io::Write,
     path::{Path, PathBuf},
 };
 
@@ -15,112 +14,50 @@ use crate::application::{apod, Application};
 use crate::error::Error;
 
 ///
-/// The application options.
-///
-#[derive(Debug)]
-pub struct Options {
-    ///
-    /// The configuration file path.
-    ///
-    config_file: PathBuf,
-
-    ///
-    /// The log file path.
-    ///
-    log_file: PathBuf,
-}
-
-impl Options {
-    ///
-    /// The new instance of the application options.
-    ///
-    pub async fn new() -> Result<Self, Error> {
-        let project_dirs = ProjectDirs::from(
-            Application::QUALIFIER,
-            Application::AUTHOR,
-            Application::NAME,
-        )
-        .ok_or(Error::AppInitError)?;
-
-        if !project_dirs.config_dir().exists() {
-            fs::create_dir_all(project_dirs.config_dir()).await?;
-        }
-        let config_file = project_dirs.config_dir().join("nta.toml");
-
-        let log_path = project_dirs.data_local_dir().join("log");
-        if !log_path.exists() {
-            fs::create_dir_all(log_path.as_path()).await?;
-        }
-        let log_file = log_path.join("nta.log");
-
-        Ok(Self {
-            config_file,
-            log_file,
-        })
-    }
-
-    ///
-    /// Get the configuration file path.
-    ///
-    #[inline]
-    pub fn config_file(&self) -> &Path {
-        self.config_file.as_path()
-    }
-
-    ///
-    /// Get the log file path.
-    ///
-    #[inline]
-    pub fn log_file(&self) -> &Path {
-        self.log_file.as_path()
-    }
-}
-
-///
 /// The notes application configuration.
 ///
-#[derive(Debug, Serialize, Deserialize)]
-pub(crate) struct NotesConfig {
+#[derive(Debug, Serialize, Deserialize, Default, Clone)]
+pub(crate) struct VaultConfig {
     ///
     /// The root directory of the notes set.
     ///
-    #[serde(rename = "Root")]
-    root: PathBuf,
+    #[serde(rename = "Root", skip_serializing_if = "Option::is_none")]
+    root: Option<PathBuf>,
 
     ///
     /// The files directory of the notes set.
     ///
-    #[serde(rename = "Files")]
+    #[serde(rename = "Files", skip_serializing_if = "Option::is_none")]
     files_path: Option<PathBuf>,
 
     ///
     /// The daily directory of the notes set.
     ///
-    #[serde(rename = "Daily")]
+    #[serde(rename = "Daily", skip_serializing_if = "Option::is_none")]
     daily_path: Option<PathBuf>,
 
     ///
     /// The Astronomy Picture of the Day directory of the notes set.
     ///
-    #[serde(rename = "APoD")]
+    #[serde(rename = "APoD", skip_serializing_if = "Option::is_none")]
     apod_path: Option<PathBuf>,
 
     ///
     /// The This Day in Rust directory of the notes set.
     ///
-    #[serde(rename = "TWiR")]
+    #[serde(rename = "TWiR", skip_serializing_if = "Option::is_none")]
     twir_path: Option<PathBuf>,
 }
 
 ///
 /// The NASA Astronomy Picture of the Day API configuration.
 ///
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Default, Clone)]
 pub(crate) struct NASAAPoDAPIConfig {
     ///
     /// The NASA Astronomy Picture of the Day API Key.
     ///
-    #[serde(rename = "Key")]
+    #[serde(rename = "Key", skip_serializing_if = "Option::is_none")]
     key: Option<String>,
 
     ///
@@ -149,119 +86,157 @@ pub(crate) struct RefBarConfig {
 ///
 /// The application configuration.
 ///
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Config {
+    ///
+    /// The configuration file path.
+    ///
+    #[serde(skip_serializing)]
+    config_file: PathBuf,
+
+    ///
+    /// The log file path.
+    ///
+    #[serde(skip_serializing)]
+    log_file: PathBuf,
+
     ///
     /// The notes application configuration.
     ///
-    #[serde(rename = "Notes")]
-    notes: NotesConfig,
+    #[serde(rename = "Vault")]
+    vault_config: VaultConfig,
 
     ///
     /// The NASA Astronomy Picture of the Day API configuration.
     ///
     #[serde(rename = "NASA APoD API")]
-    nasa_apod: NASAAPoDAPIConfig,
+    apod_config: NASAAPoDAPIConfig,
 }
 
 impl Config {
     ///
     /// New instance of the application configuration.
     ///
-    pub async fn new(options: &Options) -> Result<Self, Error> {
-        if !options.config_file().exists() {
-            let mut notes_root = String::new();
-            print!("Enter the notes root path: ");
-            std::io::stdout().flush()?;
-            let _ = std::io::stdin().read_line(&mut notes_root).unwrap();
-            let notes_root = PathBuf::from(notes_root.trim());
+    pub async fn new() -> Result<Self, Error> {
+        let project_dirs = ProjectDirs::from(
+            Application::QUALIFIER,
+            Application::AUTHOR,
+            Application::NAME,
+        )
+        .ok_or(Error::AppInitError)?;
 
-            let files_path = notes_root.join("Files");
-            let daily_path = notes_root.join("Daily");
-            let base_path = notes_root.join("Base");
+        if !project_dirs.config_dir().exists() {
+            fs::create_dir_all(project_dirs.config_dir()).await?;
+        }
+        let config_file = project_dirs.config_dir().join("nta.toml");
 
-            let science_path = base_path.join("Science");
-            let astronomy_path = science_path.join("Astronomy");
-            let apod_path = astronomy_path.join("APoD");
+        let log_path = project_dirs.data_local_dir().join("log");
+        if !log_path.exists() {
+            fs::create_dir_all(log_path.as_path()).await?;
+        }
+        let log_file = log_path.join("nta.log");
 
-            let development_path = base_path.join("Development");
-            let rust_path = development_path.join("Rust");
-            let twir_path = rust_path.join("TWiR");
+        Ok(Self {
+            config_file,
+            log_file,
+            vault_config: Default::default(),
+            apod_config: Default::default(),
+        })
+    }
 
-            let mut apod_key = String::new();
-            print!("Enter the NASA Astronomy Picture of the Day API key: ");
-            std::io::stdout().flush()?;
-            let _ = std::io::stdin().read_line(&mut apod_key).unwrap();
-            let apod_key = apod_key.trim().to_owned();
-
-            let config = Self {
-                notes: NotesConfig {
-                    root: notes_root,
-                    files_path: Some(files_path),
-                    daily_path: Some(daily_path),
-                    apod_path: Some(apod_path),
-                    twir_path: Some(twir_path),
-                },
-                nasa_apod: NASAAPoDAPIConfig {
-                    key: Some(apod_key),
-                    version: apod::Version::V1_0,
-                },
-            };
-
-            let content = toml::to_string(&config)?;
+    ///
+    /// Load a configuration from the file.
+    ///
+    pub async fn load(self) -> Result<Self, Error> {
+        if self.config_file.exists() {
+            let mut buffer = String::new();
             {
-                let mut file = File::create(options.config_file()).await?;
-                file.write_all(content.as_bytes()).await?;
-                log::info!(
-                    "The configuration file \"{}\" has been created",
-                    options.config_file().display()
-                );
+                let mut file = File::open(self.config_file.as_path()).await?;
+                file.read_to_string(&mut buffer).await?;
             }
-        }
 
-        let mut buffer = String::new();
+            log::info!(
+                "The configuration was loaded from the file \"{}\"",
+                self.config_file.as_path().display()
+            );
+
+            let mut config = toml::from_str::<Self>(&buffer)?;
+            config.config_file = self.config_file;
+            config.log_file = self.log_file;
+
+            Ok(config)
+        } else {
+            self.save().await?;
+            Ok(self)
+        }
+    }
+
+    ///
+    /// Save a configuration to the file.
+    ///
+    pub async fn save(&self) -> Result<(), Error> {
+        let content = toml::to_string(self)?;
         {
-            let mut file = File::open(options.config_file()).await?;
-            file.read_to_string(&mut buffer).await?;
+            let mut file = File::create(self.config_file.as_path()).await?;
+            file.write_all(content.as_bytes()).await?;
+            log::info!(
+                "The configuration was saved to the file  \"{}\"",
+                self.config_file.as_path().display()
+            );
         }
 
-        let config = toml::from_str::<Self>(&buffer)?;
-        if !config.is_root_valid() {
-            return Err(Error::IllegalNotesRoot(config.notes.root));
-        }
-
-        Ok(config)
+        Ok(())
     }
 
     ///
-    /// Get the root directory of the notes set.
+    /// Get the configuration file name.
     ///
     #[inline]
-    pub fn root(&self) -> &Path {
-        self.notes.root.as_path()
+    pub fn config_file(&self) -> &Path {
+        self.config_file.as_path()
+    }
+
+    ///
+    /// Get the logging file name.
+    ///
+    #[inline]
+    pub fn log_file(&self) -> &Path {
+        self.log_file.as_path()
+    }
+
+    ///
+    /// Get the root directory of the vault.
+    ///
+    #[inline]
+    pub fn root(&self) -> Option<&Path> {
+        self.vault_config.root.as_deref()
+    }
+
+    ///
+    /// Get the files directory of the vault.
+    ///
+    #[inline]
+    pub fn files_path(&self) -> Option<Cow<Path>> {
+        if let Some(ref path_buf) = self.vault_config.files_path {
+            Some(Cow::Borrowed(path_buf.as_path()))
+        } else if let Some(ref path_buf) = self.vault_config.root {
+            Some(Cow::Owned(path_buf.join("Files")))
+        } else {
+            None
+        }
     }
 
     ///
     /// Get the files directory of the notes set.
     ///
     #[inline]
-    pub fn files_path(&self) -> Cow<Path> {
-        if let Some(ref path) = self.notes.files_path {
-            Cow::Borrowed(path.as_path())
+    pub fn daily_path(&self) -> Option<Cow<Path>> {
+        if let Some(ref path_buf) = self.vault_config.daily_path {
+            Some(Cow::Borrowed(path_buf.as_path()))
+        } else if let Some(ref path_buf) = self.vault_config.root {
+            Some(Cow::Owned(path_buf.join("Daily")))
         } else {
-            Cow::Owned(self.notes.root.join("Files"))
-        }
-    }
-
-    ///
-    /// Get the files directory of the notes set.
-    ///
-    #[inline]
-    pub fn daily_path(&self) -> Cow<Path> {
-        if let Some(ref path) = self.notes.daily_path {
-            Cow::Borrowed(path.as_path())
-        } else {
-            Cow::Owned(self.notes.root.join("Daily"))
+            None
         }
     }
 
@@ -269,18 +244,13 @@ impl Config {
     /// Get the Astronomy Picture of the Day directory of the notes set.
     ///
     #[inline]
-    pub fn apod_path(&self) -> Cow<Path> {
-        if let Some(ref path) = self.notes.apod_path {
-            Cow::Borrowed(path.as_path())
+    pub fn apod_path(&self) -> Option<Cow<Path>> {
+        if let Some(ref path_buf) = self.vault_config.apod_path {
+            Some(Cow::Borrowed(path_buf.as_path()))
+        } else if let Some(ref path_buf) = self.vault_config.root {
+            Some(Cow::Owned(path_buf.join("Base").join("Issues")))
         } else {
-            Cow::Owned(
-                self.notes
-                    .root
-                    .join("Base")
-                    .join("Science")
-                    .join("Astronomy")
-                    .join("APoD"),
-            )
+            None
         }
     }
 
@@ -288,18 +258,13 @@ impl Config {
     /// Get the This Week in Rust directory of the notes set.
     ///
     #[inline]
-    pub fn twir_path(&self) -> Cow<Path> {
-        if let Some(ref path) = self.notes.twir_path {
-            Cow::Borrowed(path.as_path())
+    pub fn twir_path(&self) -> Option<Cow<Path>> {
+        if let Some(ref path_buf) = self.vault_config.twir_path {
+            Some(Cow::Borrowed(path_buf.as_path()))
+        } else if let Some(ref path_buf) = self.vault_config.root {
+            Some(Cow::Owned(path_buf.join("Base").join("Issues")))
         } else {
-            Cow::Owned(
-                self.notes
-                    .root
-                    .join("Base")
-                    .join("Development")
-                    .join("Rust")
-                    .join("TWiR"),
-            )
+            None
         }
     }
 
@@ -308,7 +273,7 @@ impl Config {
     ///
     #[inline]
     pub fn apod_key(&self) -> Option<&str> {
-        self.nasa_apod.key.as_deref()
+        self.apod_config.key.as_deref()
     }
 
     ///
@@ -316,12 +281,6 @@ impl Config {
     ///
     #[inline]
     pub fn apod_version(&self) -> apod::Version {
-        self.nasa_apod.version
-    }
-
-    // Validate notes set root.
-    #[inline]
-    fn is_root_valid(&self) -> bool {
-        self.notes.root.exists() && self.notes.root.is_dir()
+        self.apod_config.version
     }
 }

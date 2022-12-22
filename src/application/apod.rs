@@ -13,6 +13,13 @@ pub enum Version {
     V1_0,
 }
 
+impl Default for Version {
+    #[inline]
+    fn default() -> Self {
+        Self::V1_0
+    }
+}
+
 ///
 /// NASA Astronomy Picture of the Day API media type.
 ///

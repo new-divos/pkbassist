@@ -92,6 +92,23 @@ pub enum Command {
         #[clap(subcommand)]
         annex: Annex,
     },
+
+    ///
+    /// Configure the application.
+    /// 
+    Config {
+        ///
+        /// The configuration key.
+        /// 
+        #[clap(name = "key", required = true)]
+        key: String,
+
+        ///
+        /// The configuration value.
+        /// 
+        #[clap(name = "value", required = true)]
+        value: String,
+    },
 }
 
 ///

@@ -21,7 +21,7 @@ use walkdir::WalkDir;
 
 use crate::{
     cli::{Annex, Arguments, Command, Info, Note},
-    config::{Config, Options},
+    config::Config,
     error::Error,
 };
 
@@ -53,7 +53,7 @@ impl Application {
     ///
     /// Setup the application logger.
     ///
-    pub fn setup_logger(args: &Arguments, options: &Options) -> Result<(), Error> {
+    pub fn setup_logger(args: &Arguments, config: &Config) -> Result<(), Error> {
         fern::Dispatch::new()
             .format(|out, message, record| {
                 out.finish(format_args!(
@@ -87,7 +87,7 @@ impl Application {
                     _ => file_config.level(log::LevelFilter::Trace),
                 };
 
-                file_config.chain(fern::log_file(options.log_file())?)
+                file_config.chain(fern::log_file(config.log_file())?)
             })
             .chain(
                 fern::Dispatch::new()
@@ -176,6 +176,11 @@ impl Application {
                     .await?
                 }
             },
+
+            // Configure the apploication.
+            Command::Config { ref key, ref value } => {
+                self.configure(key.as_str(), value.as_str()).await?
+            }
         }
 
         Ok(())
@@ -185,13 +190,14 @@ impl Application {
     /// Repair the wiki references.
     ///
     async fn repair_wiki_refs(&self) -> Result<(), Error> {
+        let root = self.check_root()?;
         let re = Arc::new(
             Regex::new(
                 r"\[\[\s*(?P<file>[A-Za-z\d\-\.]+(?:\s+[\w\d\-_\.\(\)]+)*)\s*\|\s+(?P<descr>.[^\[\]]+)\s*?\]\]",
             )
             .unwrap(),
         );
-        let errors = stream::iter(WalkDir::new(self.config.root()).into_iter())
+        let errors = stream::iter(WalkDir::new(root).into_iter())
             .filter_map(|e| async move {
                 if let Ok(e) = e {
                     if e.path().exists()
@@ -237,8 +243,11 @@ impl Application {
     /// Remove the unused files.
     ///
     async fn remove_unused_files(&self) -> Result<(), Error> {
+        let root = self.check_root()?;
+        let files_path = self.config.files_path().ok_or(Error::VaultRootIsAbsent)?;
+
         let files = Arc::new(
-            stream::iter(WalkDir::new(self.config.files_path()).into_iter())
+            stream::iter(WalkDir::new(files_path).into_iter())
                 .filter_map(|e| async move {
                     if let Ok(e) = e {
                         if e.path().exists() && e.path().is_file() {
@@ -254,7 +263,7 @@ impl Application {
                 .await,
         );
 
-        let mix = stream::iter(WalkDir::new(self.config.root()).into_iter())
+        let mix = stream::iter(WalkDir::new(root).into_iter())
             .filter_map(|e| async move {
                 if let Ok(e) = e {
                     if e.path().exists()
@@ -686,7 +695,9 @@ impl Application {
             format!("name: \"{}\"", response.title()),
             "issue: APoD".to_string(),
             format!("date: {}", date),
-            "tags:\n- issue/apod\n- astronomy\n---\n".to_string(),
+            "tags:\n- issue/apod\n- astronomy\n".to_string(),
+            "banner: \"![[apod-banner.png]]\"\nbanner_icon: 🌠\n".to_string(),
+            "---\n".to_string(),
             if update_daily && daily_path.exists() && daily_path.is_file() {
                 format!("[[{}]]\n", date)
             } else {
@@ -725,7 +736,7 @@ impl Application {
             }
 
             let line = format!(
-                "\n\n`rir:Star` [[ISS.APoD.{}|Astronomy Picture of the Day]]\n",
+                "\n\n⭐ [[ISS.APoD.{}|Astronomy Picture of the Day]]\n",
                 file_date
             );
             buffer.push_str(line.as_str());
@@ -819,7 +830,7 @@ impl Application {
             }
 
             let line = format!(
-                "\n\n`rir:Newspaper` [[ISS.TWiR.{0}|This Week in Rust {0}]]\n",
+                "\n\n`rir:Newspaper` [[ISS.TWiR.{0}-|This Week in Rust {0}]]\n",
                 number
             );
             buffer.push_str(line.as_str());
@@ -988,5 +999,28 @@ impl Application {
         _leader: &str,
     ) -> Result<(), Error> {
         Ok(())
+    }
+
+    ///
+    /// Configure the application.
+    ///
+    async fn configure(&self, key: &str, value: &str) -> Result<(), Error> {
+        Ok(())
+    }
+
+    ///
+    /// Check the root path of the vault.
+    ///
+    #[inline]
+    fn check_root(&self) -> Result<&Path, Error> {
+        if let Some(path) = self.config.root() {
+            if path.exists() && path.is_dir() {
+                Ok(path)
+            } else {
+                Err(Error::IllegalVaultRoot(PathBuf::from(path)))
+            }
+        } else {
+            Err(Error::VaultRootIsAbsent)
+        }
     }
 }

@@ -14,7 +14,7 @@ async fn main() -> Result<(), Error> {
 
     Application::setup_logger(&args, &options)?;
 
-    let config = Config::new(&options).await?;
+    let config = Config::new_old(&options).await?;
     let app = Application::new(config);
 
     app.run(&args).await

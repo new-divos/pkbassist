@@ -10,14 +10,17 @@ pub enum Error {
     #[error("application initialization error")]
     AppInitError,
 
-    #[error("cannot find configuration file")]
+    #[error("cannot find the configuration file")]
     CannotFindConfig,
 
     #[error("illegal issue number {0}")]
     IllegalIssue(String),
 
-    #[error("illegal notes root {0}")]
-    IllegalNotesRoot(path::PathBuf),
+    #[error("the vault root path is not set")]
+    VaultRootIsAbsent,
+
+    #[error("illegal vault root path {0}")]
+    IllegalVaultRoot(path::PathBuf),
 
     #[error("illegal NASA Astronomy Picture of the Day API key")]
     IllegalNASAKey,
