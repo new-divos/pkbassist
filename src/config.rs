@@ -219,10 +219,11 @@ impl Config {
     pub fn files_path(&self) -> Option<Cow<Path>> {
         if let Some(ref path_buf) = self.vault_config.files_path {
             Some(Cow::Borrowed(path_buf.as_path()))
-        } else if let Some(ref path_buf) = self.vault_config.root {
-            Some(Cow::Owned(path_buf.join("Files")))
         } else {
-            None
+            self.vault_config
+                .root
+                .as_ref()
+                .map(|path_buf| Cow::Owned(path_buf.join("Files")))
         }
     }
 
@@ -233,10 +234,11 @@ impl Config {
     pub fn daily_path(&self) -> Option<Cow<Path>> {
         if let Some(ref path_buf) = self.vault_config.daily_path {
             Some(Cow::Borrowed(path_buf.as_path()))
-        } else if let Some(ref path_buf) = self.vault_config.root {
-            Some(Cow::Owned(path_buf.join("Daily")))
         } else {
-            None
+            self.vault_config
+                .root
+                .as_ref()
+                .map(|path_buf| Cow::Owned(path_buf.join("Daily")))
         }
     }
 
@@ -247,10 +249,11 @@ impl Config {
     pub fn apod_path(&self) -> Option<Cow<Path>> {
         if let Some(ref path_buf) = self.vault_config.apod_path {
             Some(Cow::Borrowed(path_buf.as_path()))
-        } else if let Some(ref path_buf) = self.vault_config.root {
-            Some(Cow::Owned(path_buf.join("Base").join("Issues")))
         } else {
-            None
+            self.vault_config
+                .root
+                .as_ref()
+                .map(|path_buf| Cow::Owned(path_buf.join("Base").join("Issues")))
         }
     }
 
@@ -261,10 +264,11 @@ impl Config {
     pub fn twir_path(&self) -> Option<Cow<Path>> {
         if let Some(ref path_buf) = self.vault_config.twir_path {
             Some(Cow::Borrowed(path_buf.as_path()))
-        } else if let Some(ref path_buf) = self.vault_config.root {
-            Some(Cow::Owned(path_buf.join("Base").join("Issues")))
         } else {
-            None
+            self.vault_config
+                .root
+                .as_ref()
+                .map(|path_buf| Cow::Owned(path_buf.join("Base").join("Issues")))
         }
     }
 

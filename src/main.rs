@@ -1,20 +1,15 @@
 use clap::Parser;
 
-use nta::{
-    application::Application,
-    cli::Arguments,
-    config::{Config, Options},
-    error::Error,
-};
+use nta::{application::Application, cli::Arguments, config::Config, error::Error};
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
     let args = Arguments::parse();
-    let options = Options::new().await?;
+    let config = Config::new().await?;
 
-    Application::setup_logger(&args, &options)?;
+    Application::setup_logger(&args, &config)?;
 
-    let config = Config::new_old(&options).await?;
+    let config = config.load().await?;
     let app = Application::new(config);
 
     app.run(&args).await
