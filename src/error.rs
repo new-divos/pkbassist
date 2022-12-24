@@ -43,6 +43,9 @@ pub enum Error {
     #[error("illegal path {0}")]
     IllegalPath(String),
 
+    #[error("illegal configuration key {0}")]
+    IllegalConfKey(String),
+
     #[error("found {0:?} failed executors")]
     MultipleExecutorsError(Vec<Error>),
 

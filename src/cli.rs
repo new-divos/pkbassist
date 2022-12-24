@@ -1,5 +1,5 @@
 use chrono::Datelike;
-use clap::{Parser, Subcommand};
+use clap::{ArgAction, Parser, Subcommand};
 
 use crate::application::{twir, Application};
 
@@ -7,24 +7,24 @@ use crate::application::{twir, Application};
 /// The application arguments.
 ///
 #[derive(Debug, Parser)]
-#[clap(
+#[command(
     author = Application::AUTHOR,
     version,
     about = Application::DESCRIPTION,
     long_about = None,
 )]
-#[clap(propagate_version = true)]
+#[command(propagate_version = true)]
 pub struct Arguments {
     ///
     /// The verbosity level.
     ///
-    #[clap(short = 'v', long = "verbose", parse(from_occurrences))]
-    pub(crate) verbosity: i32,
+    #[arg(short = 'v', long = "verbose", action = ArgAction::Count)]
+    pub(crate) verbosity: u8,
 
     ///
     /// The application command.
     ///
-    #[clap(subcommand)]
+    #[command(subcommand)]
     pub(crate) command: Command,
 }
 
@@ -41,31 +41,31 @@ pub enum Command {
         ///
         /// Repair the wiki references.
         ///
-        #[clap(long = "wiki-refs", parse(from_flag))]
+        #[arg(long = "wiki-refs", action = ArgAction::SetTrue)]
         wiki_refs: bool,
 
         ///
         /// Remove the unused files.
         ///
-        #[clap(long = "remove-unused-files", parse(from_flag))]
+        #[arg(long = "remove-unused-files", action = ArgAction::SetTrue)]
         remove_unused_files: bool,
 
         ///
         /// Rename the attached files.
         ///
-        #[clap(long = "rename-files", parse(from_flag))]
+        #[arg(long = "rename-files", action = ArgAction::SetTrue)]
         rename_files: bool,
 
         ///
         /// Repair the This Week in Rust issues.
         /// 
-        #[clap(long = "twir-issues", parse(from_flag))]
+        #[arg(long = "twir-issues", action = ArgAction::SetTrue)]
         twir_issues: bool,
 
         ///
         /// Repair the Astronomy Picture of the Day issues.
         /// 
-        #[clap(long = "apod-issues", parse(from_flag))]
+        #[arg(long = "apod-issues", action = ArgAction::SetTrue)]
         apod_issues: bool,
     },
 
@@ -73,7 +73,7 @@ pub enum Command {
     /// Grab notes to the notes set.
     ///
     Grab {
-        #[clap(subcommand)]
+        #[command(subcommand)]
         note: Note,
     },
 
@@ -81,7 +81,7 @@ pub enum Command {
     /// Show the additional information.
     ///
     Show {
-        #[clap(subcommand)]
+        #[command(subcommand)]
         info: Info,
     },
 
@@ -89,7 +89,7 @@ pub enum Command {
     /// Add the additional information to the notes set.
     ///
     Add {
-        #[clap(subcommand)]
+        #[command(subcommand)]
         annex: Annex,
     },
 
@@ -100,14 +100,20 @@ pub enum Command {
         ///
         /// The configuration key.
         /// 
-        #[clap(name = "key", required = true)]
+        #[arg(name = "key", required = true)]
         key: String,
 
         ///
         /// The configuration value.
         /// 
-        #[clap(name = "value", required = true)]
+        #[arg(name = "value", required = true)]
         value: String,
+
+        ///
+        /// Change all dependencies.
+        ///
+        #[arg(long, action = ArgAction::SetTrue)]
+        all: bool,
     },
 }
 
@@ -120,30 +126,29 @@ pub enum Note {
     ///
     /// Grab NASA Astronomy Picture of the Day to the notes set.
     ///
-    #[clap(name = "apod")]
+    #[command(name = "apod")]
     APoD {
         ///
         /// Update daily note in notes set.
         ///
-        #[clap(short = 'd', long = "update-daily", parse(from_flag))]
+        #[arg(short = 'd', long = "update-daily", action = ArgAction::SetTrue)]
         update_daily: bool,
     },
 
-    #[clap(name = "twir")]
+    #[command(name = "twir")]
     TWiR {
-        #[clap(
-            short = 'i',
+        #[arg(
+            short,
             long = "issue",
             required = true,
-            takes_value = true,
-            parse(try_from_str)
+            action = ArgAction::Set,
         )]
         issues: twir::Issues,
 
         ///
         /// Update daily note in notes set.
         ///
-        #[clap(short = 'd', long = "update-daily", parse(from_flag))]
+        #[arg(short = 'd', long = "update-daily", action = ArgAction::SetTrue)]
         update_daily: bool,
     },
 }
@@ -157,12 +162,12 @@ pub enum Info {
     ///
     /// Show This Week in Rust issues.
     ///
-    #[clap(name = "twir")]
+    #[command(name = "twir")]
     TWiR {
         ///
         /// Show the only last issue.
         ///
-        #[clap(short = 'l', long = "last", required = false, takes_value = false)]
+        #[arg(short, long, action = ArgAction::SetTrue)]
         last: bool,
     },
 }
@@ -176,25 +181,23 @@ pub enum Annex {
     ///
     /// Add the calendar to the monthly note.
     ///
-    #[clap(name = "calendar")]
+    #[command(name = "calendar")]
     Calendar {
         ///
         /// The year number.
         ///
-        #[clap(
+        #[arg(
             default_value_t = chrono::offset::Local::today().year(), 
-            short = 'y', 
-            long = "year"
+            short, long
         )]
         year: i32,
 
         ///
         /// The month number.
         /// 
-        #[clap(
+        #[arg(
             default_value_t = chrono::offset::Local::today().month(), 
-            short = 'm', 
-            long = "month"
+            short, long
         )]
         month: u32,
     },
@@ -202,30 +205,30 @@ pub enum Annex {
     ///
     /// Add the reference bar to the note.
     /// 
-    #[clap (name = "refbar")]
+    #[command(name = "refbar")]
     RefBar {
         ///
         /// The note name.
         /// 
-        #[clap(required = true, takes_value = true, short = 'n', long = "note")]
+        #[arg(short, long, required = true)]
         note: String,
 
         ///
         /// The references list.
         /// 
-        #[clap(required = false, short = 'r', long = "ref")]
+        #[arg(short, long = "ref", required = false)]
         references: Vec<String>,
 
         ///
         /// The spacing between references.
         /// 
-        #[clap(required = false, long = "spacing")]
+        #[arg(long, required = false)]
         spacing: Option<usize>,
 
         ///
         /// The leader of the reference bar.
         /// 
-        #[clap(required = false, long = "leader")]
+        #[arg(long, required = false)]
         leader: Option<String>,
     },
 }

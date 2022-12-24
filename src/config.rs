@@ -91,13 +91,13 @@ pub struct Config {
     ///
     /// The configuration file path.
     ///
-    #[serde(skip_serializing)]
+    #[serde(skip)]
     config_file: PathBuf,
 
     ///
     /// The log file path.
     ///
-    #[serde(skip_serializing)]
+    #[serde(skip)]
     log_file: PathBuf,
 
     ///
@@ -213,6 +213,37 @@ impl Config {
     }
 
     ///
+    /// Set the root directory of the vault.
+    ///
+    pub(crate) fn set_root(&mut self, path: &Path, all: bool) -> Result<(), Error> {
+        self.vault_config.root = Some(PathBuf::from(path));
+
+        if all {
+            self.vault_config.files_path = None;
+            self.vault_config.files_path = Some(PathBuf::from(
+                self.files_path().ok_or(Error::VaultRootIsAbsent)?,
+            ));
+
+            self.vault_config.daily_path = None;
+            self.vault_config.daily_path = Some(PathBuf::from(
+                self.daily_path().ok_or(Error::VaultRootIsAbsent)?,
+            ));
+
+            self.vault_config.apod_path = None;
+            self.vault_config.apod_path = Some(PathBuf::from(
+                self.apod_path().ok_or(Error::VaultRootIsAbsent)?,
+            ));
+
+            self.vault_config.twir_path = None;
+            self.vault_config.twir_path = Some(PathBuf::from(
+                self.twir_path().ok_or(Error::VaultRootIsAbsent)?,
+            ));
+        }
+
+        Ok(())
+    }
+
+    ///
     /// Get the files directory of the vault.
     ///
     #[inline]
@@ -225,6 +256,14 @@ impl Config {
                 .as_ref()
                 .map(|path_buf| Cow::Owned(path_buf.join("Files")))
         }
+    }
+
+    ///
+    /// Set the files directory of the vault.
+    ///
+    #[inline]
+    pub(crate) fn set_files_path(&mut self, path: &Path) {
+        self.vault_config.files_path = Some(PathBuf::from(path));
     }
 
     ///
@@ -243,6 +282,14 @@ impl Config {
     }
 
     ///
+    /// Set the files directory of the notes set.
+    ///
+    #[inline]
+    pub(crate) fn set_daily_path(&mut self, path: &Path) {
+        self.vault_config.daily_path = Some(PathBuf::from(path));
+    }
+
+    ///
     /// Get the Astronomy Picture of the Day directory of the notes set.
     ///
     #[inline]
@@ -255,6 +302,14 @@ impl Config {
                 .as_ref()
                 .map(|path_buf| Cow::Owned(path_buf.join("Base").join("Issues")))
         }
+    }
+
+    ///
+    /// Set the Astronomy Picture of the Day directory of the notes set.
+    ///
+    #[inline]
+    pub(crate) fn set_apod_path(&mut self, path: &Path) {
+        self.vault_config.apod_path = Some(PathBuf::from(path));
     }
 
     ///
@@ -273,11 +328,27 @@ impl Config {
     }
 
     ///
+    /// Set the This Week in Rust directory of the notes set.
+    ///
+    #[inline]
+    pub(crate) fn set_twir_path(&mut self, path: &Path) {
+        self.vault_config.twir_path = Some(PathBuf::from(path));
+    }
+
+    ///
     /// Get NASA Astronomy Picture of the Day API Key.
     ///
     #[inline]
     pub fn apod_key(&self) -> Option<&str> {
         self.apod_config.key.as_deref()
+    }
+
+    ///
+    /// Set NASA Astronomy Picture of the Day API Key.
+    ///
+    #[inline]
+    pub(crate) fn set_apod_key(&mut self, value: &str) {
+        self.apod_config.key = Some(value.to_string());
     }
 
     ///

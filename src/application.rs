@@ -177,10 +177,12 @@ impl Application {
                 }
             },
 
-            // Configure the apploication.
-            Command::Config { ref key, ref value } => {
-                self.configure(key.as_str(), value.as_str()).await?
-            }
+            // Configure the application.
+            Command::Config {
+                ref key,
+                ref value,
+                all,
+            } => self.configure(key.as_str(), value.as_str(), all).await?,
         }
 
         Ok(())
@@ -1029,7 +1031,42 @@ impl Application {
     ///
     /// Configure the application.
     ///
-    async fn configure(&self, _key: &str, _value: &str) -> Result<(), Error> {
+    async fn configure(&self, key: &str, value: &str, all: bool) -> Result<(), Error> {
+        let mut config = self.config.clone();
+        match key.to_lowercase().as_str() {
+            "vault.root" => {
+                let path = Path::new(value);
+                config.set_root(path, all)?;
+            }
+
+            "vault.files" => {
+                let path = Path::new(value);
+                config.set_files_path(path);
+            }
+
+            "vault.daily" => {
+                let path = Path::new(value);
+                config.set_daily_path(path);
+            }
+
+            "vault.apod" => {
+                let path = Path::new(value);
+                config.set_apod_path(path);
+            }
+
+            "vault.twir" => {
+                let path = Path::new(value);
+                config.set_twir_path(path);
+            }
+
+            "apod.key" => {
+                config.set_apod_key(value);
+            }
+
+            _ => return Err(Error::IllegalConfKey(value.to_string())),
+        }
+
+        config.save().await?;
         Ok(())
     }
 
