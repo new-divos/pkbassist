@@ -1063,6 +1063,17 @@ impl Application {
                 config.set_apod_key(value);
             }
 
+            "refbar.spacing" => {
+                let spacing = value
+                    .parse::<usize>()
+                    .map_err(|_| Error::IllegalConfValue(value.to_string()))?;
+                config.set_refbar_spacing(spacing);
+            }
+
+            "refbar.leader" => {
+                config.set_refbar_leader(value);
+            }
+
             _ => return Err(Error::IllegalConfKey(value.to_string())),
         }
 

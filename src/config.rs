@@ -70,17 +70,28 @@ pub(crate) struct NASAAPoDAPIConfig {
 ///
 /// The reference bar (refbar) configuration.
 ///
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub(crate) struct RefBarConfig {
     ///
     /// The spacing between references.
     ///
+    #[serde(rename = "Spacing", skip_serializing_if = "Option::is_none")]
     spacing: Option<usize>,
 
     ///
     /// The leader of the reference bar.
     ///
+    #[serde(rename = "Leader", skip_serializing_if = "Option::is_none")]
     leader: Option<String>,
+}
+
+impl Default for RefBarConfig {
+    fn default() -> Self {
+        Self {
+            spacing: Some(10),
+            leader: Default::default(),
+        }
+    }
 }
 
 ///
@@ -109,8 +120,14 @@ pub struct Config {
     ///
     /// The NASA Astronomy Picture of the Day API configuration.
     ///
-    #[serde(rename = "NASA APoD API")]
+    #[serde(rename = "APoD")]
     apod_config: NASAAPoDAPIConfig,
+
+    ///
+    /// The reference bar (refbar) configuration.
+    ///
+    #[serde(rename = "RefBar")]
+    refbar_config: RefBarConfig,
 }
 
 impl Config {
@@ -141,6 +158,7 @@ impl Config {
             log_file,
             vault_config: Default::default(),
             apod_config: Default::default(),
+            refbar_config: Default::default(),
         })
     }
 
@@ -357,5 +375,41 @@ impl Config {
     #[inline]
     pub fn apod_version(&self) -> apod::Version {
         self.apod_config.version
+    }
+
+    ///
+    /// Get the spacing between references.
+    ///
+    #[inline]
+    pub fn refbar_spacing(&self) -> usize {
+        if let Some(spacing) = self.refbar_config.spacing {
+            spacing
+        } else {
+            10
+        }
+    }
+
+    ///
+    /// Set the spacing between references.
+    ///
+    #[inline]
+    pub(crate) fn set_refbar_spacing(&mut self, value: usize) {
+        self.refbar_config.spacing = Some(value);
+    }
+
+    ///
+    /// Get the leader of the reference bar.
+    ///
+    #[inline]
+    pub fn refbar_leader(&self) -> Option<&str> {
+        self.refbar_config.leader.as_deref()
+    }
+
+    ///
+    /// Set the leader of the reference bar.
+    ///
+    #[inline]
+    pub(crate) fn set_refbar_leader(&mut self, value: &str) {
+        self.refbar_config.leader = Some(value.to_string());
     }
 }
