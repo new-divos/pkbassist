@@ -268,11 +268,12 @@ impl Application {
         let mix = stream::iter(WalkDir::new(root).into_iter())
             .filter_map(|e| async move {
                 if let Ok(e) = e {
-                    if e.path().exists()
-                        && e.path().is_file()
-                        && e.path().extension().and_then(OsStr::to_str) == Some("md")
-                    {
-                        return Some(e);
+                    if e.path().exists() && e.path().is_file() {
+                        if let Some(extension) = e.path().extension().and_then(OsStr::to_str) {
+                            if extension == "md" || extension == "canvas" {
+                                return Some(e);
+                            }
+                        }
                     }
                 }
 
@@ -387,11 +388,12 @@ impl Application {
         let mut errors = stream::iter(WalkDir::new(root).into_iter())
             .filter_map(|e| async move {
                 if let Ok(e) = e {
-                    if e.path().exists()
-                        && e.path().is_file()
-                        && e.path().extension().and_then(OsStr::to_str) == Some("md")
-                    {
-                        return Some(e);
+                    if e.path().exists() && e.path().is_file() {
+                        if let Some(extension) = e.path().extension().and_then(OsStr::to_str) {
+                            if extension == "md" || extension == "canvas" {
+                                return Some(e);
+                            }
+                        }
                     }
                 }
 
