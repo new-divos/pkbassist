@@ -23,3 +23,4 @@ toml = "^0.5"
 url = "^2"
 uuid = {version = "^1", features = ["v4", "fast-rng"]}
 walkdir = "^2"
+yaml-rust = "^0.4"

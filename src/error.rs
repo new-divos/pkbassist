@@ -43,11 +43,17 @@ pub enum Error {
     #[error("illegal path {0}")]
     IllegalPath(String),
 
-    #[error("illegal configuration key {0}")]
+    #[error("illegal the configuration key {0}")]
     IllegalConfKey(String),
 
-    #[error("illegal configuration value {0}")]
+    #[error("illegal the configuration value {0}")]
     IllegalConfValue(String),
+
+    #[error("the note metadata was not found")]
+    NoteMetadataNotFound,
+
+    #[error("illegal the note metadata")]
+    IllegalNoteMetadata,
 
     #[error("found {0:?} failed executors")]
     MultipleExecutorsError(Vec<Error>),
@@ -78,4 +84,7 @@ pub enum Error {
 
     #[error("set logger error {0}")]
     SetLoggerError(#[from] log::SetLoggerError),
+
+    #[error("YAML scanning error {0}")]
+    YamlScanError(#[from] yaml_rust::ScanError),
 }

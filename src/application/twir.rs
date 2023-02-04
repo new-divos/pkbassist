@@ -176,7 +176,7 @@ mod tests {
     #[test]
     fn issue_test() {
         for i in 1..=100 {
-            let value = Issues::from_str(format!("{}", i).as_str()).unwrap();
+            let value = Issues::from_str(format!("{i}").as_str()).unwrap();
             assert_eq!(value, Issues::Single(i));
         }
 
@@ -184,12 +184,12 @@ mod tests {
         assert!(Issues::from_str("-1").is_err());
 
         for (i1, i2) in (1..=100).zip((1..=100).map(|x| x * x)) {
-            let value = Issues::from_str(format!("{}..{}", i1, i2).as_str()).unwrap();
+            let value = Issues::from_str(format!("{i1}..{i2}").as_str()).unwrap();
             assert_eq!(value, Issues::Range(i1, i2));
         }
 
         for (i1, i2) in (1..=100).zip((1..=100).map(|x| x + 10)) {
-            let value = Issues::from_str(format!("{}..{}", i2, i1).as_str()).unwrap();
+            let value = Issues::from_str(format!("{i1}..{i2}").as_str()).unwrap();
             assert_eq!(value, Issues::Range(i1, i2));
         }
     }

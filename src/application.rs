@@ -27,6 +27,7 @@ use crate::{
 
 pub(crate) mod apod;
 pub(crate) mod entry;
+pub(crate) mod meta;
 pub(crate) mod twir;
 
 ///
@@ -473,7 +474,7 @@ impl Application {
                     if let Some(stem) = e.path().file_stem().and_then(OsStr::to_str) {
                         if let Some(cap) = re.captures_iter(stem).next() {
                             let number = &cap["number"];
-                            let new_path = twir_path.join(format!("ISS.TWiR.{}-.md", number));
+                            let new_path = twir_path.join(format!("ISS.TWiR.{number}-.md"));
                             let number = number.parse::<i32>().ok()?;
                             return Some((e, new_path, number));
                         }
@@ -496,15 +497,15 @@ impl Application {
                     .replace("type: news", "type: issue")
                     .replace("news/twir", "issue/twir")
                     .replace(
-                        format!("TWiR {}", next).as_str(),
-                        format!("ISS.TWiR.{}-", next).as_str(),
+                        format!("TWiR {next}").as_str(),
+                        format!("ISS.TWiR.{next}-").as_str(),
                     );
 
                 if number > 1 {
                     let prev = number - 1;
                     content = content.replace(
-                        format!("TWiR {}", prev).as_str(),
-                        format!("ISS.TWiR.{}", prev).as_str(),
+                        format!("TWiR {prev}").as_str(),
+                        format!("ISS.TWiR.{prev}").as_str(),
                     );
                 }
                 {
@@ -562,9 +563,8 @@ impl Application {
                             let day = &cap["day"];
 
                             let new_path =
-                                apod_path.join(format!("ISS.APoD.{}.{}.{}.md", year, month, day));
-                            let daily_path =
-                                daily_path.join(format!("{}-{}-{}.md", year, month, day));
+                                apod_path.join(format!("ISS.APoD.{year}.{month}.{day}.md"));
+                            let daily_path = daily_path.join(format!("{year}-{month}-{day}.md"));
 
                             return Some((e, new_path, daily_path));
                         }
@@ -634,7 +634,7 @@ impl Application {
         let _ = self.check_root()?;
 
         let nasa_key = self.config.apod_key().ok_or(Error::IllegalNASAKey)?;
-        let url = format!("https://api.nasa.gov/planetary/apod?api_key={}", nasa_key);
+        let url = format!("https://api.nasa.gov/planetary/apod?api_key={nasa_key}");
 
         let response = reqwest::get(url).await?.json::<apod::Info>().await?;
 
@@ -706,36 +706,36 @@ impl Application {
             .config
             .daily_path()
             .ok_or(Error::VaultRootIsAbsent)?
-            .join(format!("{}.md", date));
+            .join(format!("{date}.md"));
 
         let mut content = vec![
             "---\ntype: issue".to_string(),
             format!("name: \"{}\"", response.title()),
             "issue: APoD".to_string(),
-            format!("date: {}", date),
-            "tags:\n- issue/apod\n- astronomy\n".to_string(),
-            "banner: \"![[apod-banner.png]]\"\nbanner_icon: 🌠\n".to_string(),
+            format!("date: {date}"),
+            "tags:\n- issue/apod\n- astronomy".to_string(),
+            "banner: \"![[apod-banner.png]]\"\nbanner_icon: 🌠".to_string(),
             "---\n".to_string(),
             if update_daily && daily_path.exists() && daily_path.is_file() {
-                format!("[[{}]]\n", date)
+                format!("[[{date}]]\n")
             } else {
                 if update_daily {
                     log::warn!("Irrelevant daily path \"{}\"", daily_path.display());
                 }
 
-                format!("{}\n", date)
+                format!("{date}\n")
             },
             format!("# {}\n", response.title()),
-            format!("{}\n", media_ref),
+            format!("{media_ref}\n"),
             format!("**Explanation:** {}\n", response.explanation()),
         ];
 
         if let Some(copyright) = response.copyright() {
-            content.push(format!("*Image copyright:* {}©\n", copyright));
+            content.push(format!("*Image copyright:* {copyright}©\n"));
         }
 
         let content = content.join("\n");
-        let note_path = apod_path.join(format!("ISS.APoD.{}.md", file_date));
+        let note_path = apod_path.join(format!("ISS.APoD.{file_date}.md"));
         {
             let mut file = File::create(note_path.as_path()).await?;
             file.write_all(content.as_bytes()).await?;
@@ -753,10 +753,7 @@ impl Application {
                 file.read_to_string(&mut buffer).await?;
             }
 
-            let line = format!(
-                "\n\n⭐ [[ISS.APoD.{}|Astronomy Picture of the Day]]\n",
-                file_date
-            );
+            let line = format!("\n\n⭐ [[ISS.APoD.{file_date}|Astronomy Picture of the Day]]\n");
             buffer.push_str(line.as_str());
 
             // Write updated content of the daily note.
@@ -797,10 +794,10 @@ impl Application {
         let date = note.datetime().format("%Y-%m-%d").to_string();
 
         let mut content = vec![
-            format!("---\ntype: issue\nissue: {}", number),
-            format!("date: {}\ntags:\n- rust\n- issue/twir\naliases:", date),
+            format!("---\ntype: issue\nissue: {number}"),
+            format!("date: {date}\ntags:\n- rust\n- issue/twir\naliases:"),
             format!("- \"{}\"", note.title()),
-            format!("- \"TWiR {} This Week in Rust {}\"", date, number),
+            format!("- \"TWiR {date} This Week in Rust {number}\""),
             format!(
                 "url: {}\nbanner: \"![[rust-language-banner.jpg]]\"\nbanner_icon: 🗞️\n---\n",
                 note.url()
@@ -811,32 +808,31 @@ impl Application {
         if number > 1 {
             let prev = number - 1;
             content.push(format!(
-                "<< [[ISS.TWiR.{0}|{0}]] | [[ISS.TWiR.{1}-|{1}]] >>\n",
-                prev, next
+                "<< [[ISS.TWiR.{prev}|{prev}]] | [[ISS.TWiR.{next}-|{next}]] >>\n"
             ));
         } else {
-            content.push(format!("| [[ISS.TWiR.{0}|{0}]] >>\n", next));
+            content.push(format!("| [[ISS.TWiR.{next}|{next}]] >>\n"));
         }
 
         let daily_path = self
             .config
             .daily_path()
             .ok_or(Error::VaultRootIsAbsent)?
-            .join(format!("{}.md", date));
+            .join(format!("{date}.md"));
 
         if update_daily && daily_path.exists() && daily_path.is_file() {
-            content.push(format!("# [[{}]]: This Week in Rust {}\n", date, number));
+            content.push(format!("# [[{date}]]: This Week in Rust {number}\n"));
         } else {
             if update_daily {
                 log::warn!("Irrelevant daily path \"{}\"", daily_path.display());
             }
 
-            content.push(format!("# {}: This Week in Rust {}\n", date, number));
+            content.push(format!("# {date}: This Week in Rust {number}\n"));
         }
         content.push(md_content);
 
         let content = content.join("\n");
-        let note_path = path.join(format!("ISS.TWiR.{}-.md", number));
+        let note_path = path.join(format!("ISS.TWiR.{number}-.md"));
         {
             let mut file = File::create(note_path.as_path()).await?;
             file.write_all(content.as_bytes()).await?;
@@ -854,7 +850,7 @@ impl Application {
                 file.read_to_string(&mut buffer).await?;
             }
 
-            let line = format!("\n\n📰 [[ISS.TWiR.{0}-|This Week in Rust {0}]]\n", number);
+            let line = format!("\n\n📰 [[ISS.TWiR.{number}-|This Week in Rust {number}]]\n");
             buffer.push_str(line.as_str());
 
             // Write updated content of the daily note.
@@ -959,7 +955,7 @@ impl Application {
             .config
             .daily_path()
             .ok_or(Error::VaultRootIsAbsent)?
-            .join(format!("{}-{:02}.md", year, month));
+            .join(format!("{year}-{month:02}.md"));
         if !monthly_path.is_file() {
             return Err(Error::IllegalPath(format!("{}", monthly_path.display())));
         }
