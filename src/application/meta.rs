@@ -1,6 +1,6 @@
 use std::{str::FromStr, string::ToString};
 
-use yaml_rust::{Yaml, YamlLoader};
+use yaml_rust::{Yaml, YamlEmitter, YamlLoader};
 
 use crate::error::Error;
 
@@ -57,6 +57,12 @@ impl FromStr for Metadata {
     }
 }
 
+impl ToString for Metadata {
+    fn to_string(&self) -> String {
+        todo!()
+    }
+}
+
 impl Metadata {
     #[inline]
     pub(crate) fn first(&self) -> usize {
@@ -67,6 +73,28 @@ impl Metadata {
     pub(crate) fn last(&self) -> usize {
         self.last
     }
+
+    // Get the banner file name from the note metadata.
+    #[inline]
+    pub(crate) fn get_banner(&self) -> Option<&str> {
+        self.metadata["banner"].as_str().map(|s| {
+            let patterns: &[_] = &['!', '[', ']'];
+            s.trim_matches(patterns)
+        })
+    }
+
+    // Set the banner file name into the note metadata.
+    pub(crate) fn set_banner<S: AsRef<str>>(&mut self, file_name: S) -> Result<(), Error> {
+        let file_name = file_name.as_ref();
+        if let Yaml::Hash(ref mut hash) = self.metadata {
+            let key = Yaml::String("banner".to_string());
+            let _ = hash.insert(key, Yaml::String(format!("![[{file_name}]]")));
+
+            Ok(())
+        } else {
+            Err(Error::IllegalNoteMetadata)
+        }
+    }
 }
 
 #[cfg(test)]
@@ -75,13 +103,7 @@ mod tests {
 
     #[test]
     fn metadata_parse1_test() {
-        let s = "
----
-type: test
----
-
-# Title
-";
+        let s = include_str!("../../tests/data/note1.md");
 
         let mut pos = usize::MAX;
         for (idx, line) in s.lines().enumerate() {
@@ -101,22 +123,7 @@ type: test
 
     #[test]
     fn metadata_parse2_test() {
-        #[rustfmt::skip]
-        let s = r#"
----
-type: software
-name: yaml-rust
-languages:
-- rust
-attributes:
-  crate: https://crates.io/crates/yaml-rust
-  msrv: "1.31"
-banner: "![[rust-language-banner.jpg]]"
-banner_icon: 🧩
----
-        
-# [yaml-rust](https://chyh1990.github.io/yaml-rust/)
-"#;
+        let s = include_str!("../../tests/data/note2.md");
 
         let mut first_pos = usize::MAX;
         let mut last_pos: usize = usize::MAX;
@@ -148,5 +155,16 @@ banner_icon: 🧩
             Some("![[rust-language-banner.jpg]]")
         );
         assert_eq!(meta.metadata["banner_icon"].as_str(), Some("🧩"));
+    }
+
+    #[test]
+    fn metadata_banner_test() {
+        let s = include_str!("../../tests/data/note2.md");
+
+        let mut meta = Metadata::from_str(s).unwrap();
+        assert_eq!(meta.get_banner(), Some("rust-language-banner.jpg"));
+
+        meta.set_banner("rust-lang-banner.png").unwrap();
+        assert_eq!(meta.get_banner(), Some("rust-lang-banner.png"));
     }
 }
