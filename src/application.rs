@@ -20,7 +20,7 @@ use uuid::Uuid;
 use walkdir::WalkDir;
 
 use crate::{
-    cli::{Annex, Arguments, Command, Info, Note},
+    cli::{AddedObject, Arguments, Command, Info, Note},
     config::Config,
     error::Error,
 };
@@ -153,12 +153,12 @@ impl Application {
             },
 
             // Add the additional information to the notes set.
-            Command::Add { ref annex } => match annex {
+            Command::Add { ref object } => match object {
                 // Add the calendar to the monthly note.
-                Annex::Calendar { year, month } => self.add_calendar(*year, *month).await?,
+                AddedObject::Calendar { year, month } => self.add_calendar(*year, *month).await?,
 
                 // Add the refbar to the note.
-                Annex::RefBar {
+                AddedObject::RefBar {
                     note,
                     references,
                     spacing,

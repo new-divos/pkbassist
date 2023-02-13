@@ -90,7 +90,15 @@ pub enum Command {
     ///
     Add {
         #[command(subcommand)]
-        annex: Annex,
+        object: AddedObject,
+    },
+
+    ///
+    /// Rename the object of the notes set.
+    /// 
+    Rename {
+        #[command(subcommand)]
+        object: RenamedObject,
     },
 
     ///
@@ -177,7 +185,7 @@ pub enum Info {
 ///
 #[derive(Debug, Subcommand)]
 #[non_exhaustive]
-pub enum Annex {
+pub enum AddedObject {
     ///
     /// Add the calendar to the monthly note.
     ///
@@ -230,5 +238,30 @@ pub enum Annex {
         /// 
         #[arg(long, required = false)]
         leader: Option<String>,
+    },
+}
+
+///
+/// The application rename command object.
+/// 
+#[derive(Debug, Subcommand)]
+#[non_exhaustive]
+pub enum RenamedObject {
+    ///
+    /// Rename the banner file name.
+    /// 
+    #[command(name = "banner")]
+    Banner {
+        ///
+        /// The old banner file name.
+        /// 
+        #[arg(required = true)]
+        old_name: String,
+
+        ///
+        /// The new banner file name.
+        /// 
+        #[arg(required = true)]
+        new_name: String,
     },
 }

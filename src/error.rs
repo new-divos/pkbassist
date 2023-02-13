@@ -87,4 +87,7 @@ pub enum Error {
 
     #[error("YAML scanning error {0}")]
     YamlScanError(#[from] yaml_rust::ScanError),
+
+    #[error("YAML emit error {0}")]
+    YamlEmitError(#[from] yaml_rust::EmitError),
 }
