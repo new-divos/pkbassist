@@ -86,7 +86,7 @@ impl Metadata {
             if line.starts_with("---") {
                 if first.is_some() {
                     if idx > 0 {
-                        last = Some(idx - 1);
+                        last = Some(idx);
                     }
                     break;
                 } else {

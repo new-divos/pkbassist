@@ -4,6 +4,7 @@ use std::{
     io::{self, Cursor},
     iter::repeat_with,
     path::{Path, PathBuf},
+    str::FromStr,
     sync::Arc,
 };
 
@@ -20,7 +21,7 @@ use uuid::Uuid;
 use walkdir::WalkDir;
 
 use crate::{
-    cli::{AddedObject, Arguments, Command, Info, Note},
+    cli::{AddedObject, Arguments, Command, Info, Note, RenamedObject},
     config::Config,
     error::Error,
 };
@@ -175,6 +176,14 @@ impl Application {
                         leader.as_deref().unwrap_or(""),
                     )
                     .await?
+                }
+            },
+
+            // Rename the banner file name.
+            Command::Rename { ref object } => match object {
+                RenamedObject::Banner { old_name, new_name } => {
+                    self.rename_banner(old_name.as_str(), new_name.as_str())
+                        .await?
                 }
             },
 
@@ -1024,6 +1033,59 @@ impl Application {
         _leader: &str,
     ) -> Result<(), Error> {
         Ok(())
+    }
+
+    ///
+    /// Rename the banner file name.
+    ///
+    async fn rename_banner(&self, old_name: &str, new_name: &str) -> Result<(), Error> {
+        let root = self.check_root()?;
+        let errors = stream::iter(WalkDir::new(root).into_iter())
+            .filter_map(|e| async move {
+                if let Ok(e) = e {
+                    if e.path().exists()
+                        && e.path().is_file()
+                        && e.path().extension().and_then(OsStr::to_str) == Some("md")
+                    {
+                        return Some(e);
+                    }
+                }
+
+                None
+            })
+            .then(|e| async move {
+                // Read content of the daily note.
+                let mut buffer = String::new();
+                {
+                    let mut file = File::open(e.path()).await?;
+                    file.read_to_string(&mut buffer).await?;
+                }
+
+                if let Ok(mut m) = meta::Metadata::from_str(buffer.as_str()) {
+                    if let Some(banner_name) = m.get_banner() {
+                        if banner_name == old_name {
+                            m.set_banner(new_name)?;
+                            let buffer = m.embed(buffer)?;
+
+                            {
+                                let mut file = File::create(e.path()).await?;
+                                file.write_all(buffer.as_bytes()).await?;
+                                log::trace!("The note \"{}\" has been updated", e.path().display());
+                            }
+                        }
+                    }
+                }
+                Ok(()) as Result<(), Error>
+            })
+            .filter_map(|r| async move { r.err() })
+            .collect::<Vec<_>>()
+            .await;
+
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(Error::MultipleExecutorsError(errors))
+        }
     }
 
     ///
