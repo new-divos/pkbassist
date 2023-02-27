@@ -158,6 +158,11 @@ impl Application {
                 // Add the calendar to the monthly note.
                 AddedObject::Calendar { year, month } => self.add_calendar(*year, *month).await?,
 
+                // Add a creation date to the notes.
+                AddedObject::CreationDate { note_type } => {
+                    self.add_creation_date(note_type.as_str()).await?
+                }
+
                 // Add the refbar to the note.
                 AddedObject::RefBar {
                     note,
@@ -1020,6 +1025,62 @@ impl Application {
         }
 
         Ok(())
+    }
+
+    ///
+    /// Add a creation date to the note.
+    ///
+    async fn add_creation_date(&self, note_type: &str) -> Result<(), Error> {
+        let root = self.check_root()?;
+        let errors = stream::iter(WalkDir::new(root).into_iter())
+            .filter_map(|e| async move {
+                if let Ok(e) = e {
+                    if e.path().exists()
+                        && e.path().is_file()
+                        && e.path().extension().and_then(OsStr::to_str) == Some("md")
+                    {
+                        return Some(e);
+                    }
+                }
+
+                None
+            })
+            .then(|e| async move {
+                // Read content of the daily note.
+                let mut buffer = String::new();
+                {
+                    let mut file = File::open(e.path()).await?;
+                    file.read_to_string(&mut buffer).await?;
+                }
+
+                if let Ok(mut m) = meta::Metadata::from_str(buffer.as_str()) {
+                    if let Some(nt) = m.get_type() {
+                        if nt == note_type && !m.has_created() {
+                            let fm = fs::metadata(e.path()).await?;
+                            let st = fm.created()?;
+
+                            m.set_created(&st)?;
+                            let buffer = m.embed(buffer)?;
+
+                            {
+                                let mut file = File::create(e.path()).await?;
+                                file.write_all(buffer.as_bytes()).await?;
+                                log::trace!("The note \"{}\" has been updated", e.path().display());
+                            }
+                        }
+                    }
+                }
+                Ok(()) as Result<(), Error>
+            })
+            .filter_map(|r| async move { r.err() })
+            .collect::<Vec<_>>()
+            .await;
+
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(Error::MultipleExecutorsError(errors))
+        }
     }
 
     ///

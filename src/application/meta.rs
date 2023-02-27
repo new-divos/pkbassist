@@ -1,5 +1,6 @@
-use std::str::FromStr;
+use std::{str::FromStr, time::SystemTime};
 
+use chrono::prelude::{DateTime, Utc};
 use yaml_rust::{Yaml, YamlEmitter, YamlLoader};
 
 use crate::error::Error;
@@ -50,6 +51,12 @@ impl FromStr for Metadata {
 }
 
 impl Metadata {
+    // Get the note type.
+    #[inline]
+    pub(crate) fn get_type(&self) -> Option<&str> {
+        self.0["type"].as_str()
+    }
+
     // Get the banner file name from the note metadata.
     #[inline]
     pub(crate) fn get_banner(&self) -> Option<&str> {
@@ -61,17 +68,39 @@ impl Metadata {
 
     // Set the banner file name into the note metadata.
     pub(crate) fn set_banner<S: AsRef<str>>(&mut self, file_name: S) -> Result<(), Error> {
-        let file_name = file_name.as_ref();
         if let Metadata(Yaml::Hash(ref mut hash)) = self {
             let key = Yaml::String("banner".to_string());
-            let _ = hash.insert(key, Yaml::String(format!("![[{file_name}]]")));
+            let file_name = file_name.as_ref();
 
+            let _ = hash.insert(key, Yaml::String(format!("![[{file_name}]]")));
             Ok(())
         } else {
             Err(Error::IllegalNoteMetadata)
         }
     }
 
+    // Is creation timestamp present.
+    #[inline]
+    pub(crate) fn has_created(&self) -> bool {
+        self.0["created"].as_str().is_some()
+    }
+
+    // Set the creation timestamp into the note metadata.
+    pub(crate) fn set_created(&mut self, st: &SystemTime) -> Result<(), Error> {
+        if let Metadata(Yaml::Hash(ref mut hash)) = self {
+            let key = Yaml::String("created".to_string());
+
+            let dt: DateTime<Utc> = (*st).into();
+            let value = format!("{}", dt.format("%+"));
+
+            let _ = hash.insert(key, Yaml::String(value));
+            Ok(())
+        } else {
+            Err(Error::IllegalNoteMetadata)
+        }
+    }
+
+    // Embed the metadata object into the note.
     pub(crate) fn embed<S: AsRef<str>>(&self, note: S) -> Result<String, Error> {
         let note = note.as_ref();
         let mut out_str = String::new();

@@ -211,6 +211,18 @@ pub enum AddedObject {
     },
 
     ///
+    /// Add a creation date to the notes.
+    /// 
+    #[command(name = "cdate")]
+    CreationDate {
+        ///
+        /// The note type.
+        /// 
+        #[arg(short = 't', long = "type", required = true)]
+        note_type: String,
+    },
+
+    ///
     /// Add the reference bar to the note.
     /// 
     #[command(name = "refbar")]
