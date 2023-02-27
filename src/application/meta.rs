@@ -1,6 +1,6 @@
 use std::{str::FromStr, time::SystemTime};
 
-use chrono::prelude::{DateTime, Utc};
+use chrono::prelude::{DateTime, Local};
 use yaml_rust::{Yaml, YamlEmitter, YamlLoader};
 
 use crate::error::Error;
@@ -90,10 +90,22 @@ impl Metadata {
         if let Metadata(Yaml::Hash(ref mut hash)) = self {
             let key = Yaml::String("created".to_string());
 
-            let dt: DateTime<Utc> = (*st).into();
-            let value = format!("{}", dt.format("%+"));
+            let dt: DateTime<Local> = (*st).into();
+            let value = format!("{}", dt.format("%FT%T%:z"));
 
             let _ = hash.insert(key, Yaml::String(value));
+            Ok(())
+        } else {
+            Err(Error::IllegalNoteMetadata)
+        }
+    }
+
+    // Remove the creation timestamp from the note metadata.
+    pub(crate) fn remove_created(&mut self) -> Result<(), Error> {
+        if let Metadata(Yaml::Hash(ref mut hash)) = self {
+            let key = Yaml::String("created".to_string());
+
+            hash.remove(&key);
             Ok(())
         } else {
             Err(Error::IllegalNoteMetadata)

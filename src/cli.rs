@@ -67,6 +67,12 @@ pub enum Command {
         /// 
         #[arg(long = "apod-issues", action = ArgAction::SetTrue)]
         apod_issues: bool,
+
+        ///
+        /// Remove creation date of the notes.
+        /// 
+        #[arg(long = "remove-created", action = ArgAction::SetTrue)]
+        remove_created: bool,
     },
 
     ///
@@ -213,7 +219,7 @@ pub enum AddedObject {
     ///
     /// Add a creation date to the notes.
     /// 
-    #[command(name = "cdate")]
+    #[command(name = "created")]
     CreationDate {
         ///
         /// The note type.

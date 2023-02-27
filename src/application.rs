@@ -113,6 +113,7 @@ impl Application {
                 rename_files,
                 twir_issues,
                 apod_issues,
+                remove_created,
             } => {
                 if wiki_refs {
                     self.repair_wiki_refs().await?;
@@ -132,6 +133,10 @@ impl Application {
 
                 if apod_issues {
                     self.repair_apod_issues().await?;
+                }
+
+                if remove_created {
+                    self.remove_created().await?;
                 }
             }
 
@@ -628,6 +633,57 @@ impl Application {
                 }
 
                 log::trace!("Finish processing of the file \"{}\"", e.path().display());
+                Ok(()) as Result<(), Error>
+            })
+            .filter_map(|r| async move { r.err() })
+            .collect::<Vec<_>>()
+            .await;
+
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(Error::MultipleExecutorsError(errors))
+        }
+    }
+
+    ///
+    /// Remove created tag from the notes.
+    ///
+    async fn remove_created(&self) -> Result<(), Error> {
+        let root = self.check_root()?;
+        let errors = stream::iter(WalkDir::new(root).into_iter())
+            .filter_map(|e| async move {
+                if let Ok(e) = e {
+                    if e.path().exists()
+                        && e.path().is_file()
+                        && e.path().extension().and_then(OsStr::to_str) == Some("md")
+                    {
+                        return Some(e);
+                    }
+                }
+
+                None
+            })
+            .then(|e| async move {
+                // Read content of the daily note.
+                let mut buffer = String::new();
+                {
+                    let mut file = File::open(e.path()).await?;
+                    file.read_to_string(&mut buffer).await?;
+                }
+
+                if let Ok(mut m) = meta::Metadata::from_str(buffer.as_str()) {
+                    if m.has_created() {
+                        let _ = m.remove_created();
+                        let buffer = m.embed(buffer)?;
+
+                        {
+                            let mut file = File::create(e.path()).await?;
+                            file.write_all(buffer.as_bytes()).await?;
+                            log::trace!("The note \"{}\" has been updated", e.path().display());
+                        }
+                    }
+                }
                 Ok(()) as Result<(), Error>
             })
             .filter_map(|r| async move { r.err() })
