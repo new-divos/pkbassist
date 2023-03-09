@@ -73,6 +73,12 @@ pub enum Command {
         /// 
         #[arg(long = "remove-created", action = ArgAction::SetTrue)]
         remove_created: bool,
+
+        ///
+        /// Repair the banners info.
+        /// 
+        #[arg(long = "banners", action = ArgAction::SetTrue)]
+        banners: bool,
     },
 
     ///
@@ -193,6 +199,30 @@ pub enum Info {
 #[non_exhaustive]
 pub enum AddedObject {
     ///
+    /// Add a banner to the note.
+    /// 
+    #[command(name = "banner")]
+    Banner {
+        ///
+        /// The banner file name.
+        /// 
+        #[arg(required = true)]
+        file_name: String,
+
+        ///
+        /// The note type.
+        /// 
+        #[arg(short = 't', long = "type", required = true)]
+        note_type: String,
+
+        ///
+        /// The note tags.
+        /// 
+        #[arg(long = "tag", required = false)]
+        note_tags: Option<Vec<String>>,
+    },
+
+    ///
     /// Add the calendar to the monthly note.
     ///
     #[command(name = "calendar")]
@@ -220,7 +250,7 @@ pub enum AddedObject {
     /// Add a creation date to the notes.
     /// 
     #[command(name = "created")]
-    CreationDate {
+    Created {
         ///
         /// The note type.
         /// 

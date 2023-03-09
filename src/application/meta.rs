@@ -57,25 +57,58 @@ impl Metadata {
         self.0["type"].as_str()
     }
 
+    // Get the note tags.
+    #[inline]
+    pub(crate) fn get_tags(&self) -> Option<Vec<&str>> {
+        self.0["tags"]
+            .as_vec()
+            .map(|v| v.iter().filter_map(|e| e.as_str()).collect())
+    }
+
     // Get the banner file name from the note metadata.
     #[inline]
     pub(crate) fn get_banner(&self) -> Option<&str> {
-        self.0["banner"].as_str().map(|s| {
-            let patterns: &[_] = &['!', '[', ']'];
-            s.trim_matches(patterns)
-        })
+        self.0["banner"].as_str()
     }
 
-    // Set the banner file name into the note metadata.
+    // Set the banner file name of the note metadata.
     pub(crate) fn set_banner<S: AsRef<str>>(&mut self, file_name: S) -> Result<(), Error> {
         if let Metadata(Yaml::Hash(ref mut hash)) = self {
             let key = Yaml::String("banner".to_string());
             let file_name = file_name.as_ref();
 
-            let _ = hash.insert(key, Yaml::String(format!("![[{file_name}]]")));
+            let _ = hash.insert(key, Yaml::String(file_name.to_string()));
             Ok(())
         } else {
             Err(Error::IllegalNoteMetadata)
+        }
+    }
+
+    // Fix the banner settings.
+    pub(crate) fn fix_banner(&mut self) -> bool {
+        if let Metadata(Yaml::Hash(ref mut hash)) = self {
+            let mut flag = false;
+
+            let key = Yaml::String("banner".to_string());
+            if let Some(Yaml::String(ref file_name)) = hash.get(&key) {
+                if !file_name.starts_with("Banners/") {
+                    let patterns: &[_] = &['!', '[', ']'];
+                    let file_name = file_name.trim_matches(patterns);
+
+                    let _ = hash.insert(key, Yaml::String(format!("Banners/{file_name}")));
+                    flag = true;
+                }
+            }
+
+            let key = Yaml::String("banner_icon".to_string());
+            if hash.get(&key).is_some() {
+                hash.remove(&key);
+                flag = true;
+            }
+
+            flag
+        } else {
+            false
         }
     }
 

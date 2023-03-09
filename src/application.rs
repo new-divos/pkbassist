@@ -3,6 +3,7 @@ use std::{
     ffi::OsStr,
     io::{self, Cursor},
     iter::repeat_with,
+    ops::Deref,
     path::{Path, PathBuf},
     str::FromStr,
     sync::Arc,
@@ -114,6 +115,7 @@ impl Application {
                 twir_issues,
                 apod_issues,
                 remove_created,
+                banners,
             } => {
                 if wiki_refs {
                     self.repair_wiki_refs().await?;
@@ -138,6 +140,10 @@ impl Application {
                 if remove_created {
                     self.remove_created().await?;
                 }
+
+                if banners {
+                    self.repair_banners().await?;
+                }
             }
 
             // Grab note into notes set.
@@ -160,13 +166,27 @@ impl Application {
 
             // Add the additional information to the notes set.
             Command::Add { ref object } => match object {
+                // Add the banner to the note.
+                AddedObject::Banner {
+                    file_name,
+                    note_type,
+                    note_tags,
+                } => {
+                    self.add_banner(
+                        file_name.as_str(),
+                        note_type.as_str(),
+                        note_tags
+                            .as_deref()
+                            .map(|e| e.iter().map(|s| s.deref()).collect()),
+                    )
+                    .await?
+                }
+
                 // Add the calendar to the monthly note.
                 AddedObject::Calendar { year, month } => self.add_calendar(*year, *month).await?,
 
                 // Add a creation date to the notes.
-                AddedObject::CreationDate { note_type } => {
-                    self.add_creation_date(note_type.as_str()).await?
-                }
+                AddedObject::Created { note_type } => self.add_created(note_type.as_str()).await?,
 
                 // Add the refbar to the note.
                 AddedObject::RefBar {
@@ -698,6 +718,55 @@ impl Application {
     }
 
     ///
+    /// Repair the banners info.
+    ///
+    async fn repair_banners(&self) -> Result<(), Error> {
+        let root = self.check_root()?;
+        let errors = stream::iter(WalkDir::new(root).into_iter())
+            .filter_map(|e| async move {
+                if let Ok(e) = e {
+                    if e.path().exists()
+                        && e.path().is_file()
+                        && e.path().extension().and_then(OsStr::to_str) == Some("md")
+                    {
+                        return Some(e);
+                    }
+                }
+
+                None
+            })
+            .then(|e| async move {
+                // Read content of the daily note.
+                let mut buffer = String::new();
+                {
+                    let mut file = File::open(e.path()).await?;
+                    file.read_to_string(&mut buffer).await?;
+                }
+
+                if let Ok(mut m) = meta::Metadata::from_str(buffer.as_str()) {
+                    if m.fix_banner() {
+                        let buffer = m.embed(buffer)?;
+
+                        let mut file = File::create(e.path()).await?;
+                        file.write_all(buffer.as_bytes()).await?;
+                        log::trace!("The note \"{}\" has been updated", e.path().display());
+                    }
+                }
+
+                Ok(()) as Result<(), Error>
+            })
+            .filter_map(|r| async move { r.err() })
+            .collect::<Vec<_>>()
+            .await;
+
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(Error::MultipleExecutorsError(errors))
+        }
+    }
+
+    ///
     /// Grab the NASA's Astronomy Picture of the Day issue.
     ///
     async fn grab_apod(&self, update_daily: bool) -> Result<(), Error> {
@@ -784,7 +853,7 @@ impl Application {
             "issue: APoD".to_string(),
             format!("date: {date}"),
             "tags:\n- issue/apod\n- astronomy".to_string(),
-            "banner: \"![[apod-banner.png]]\"\nbanner_icon: 🌠".to_string(),
+            "banner: Banners/apod-banner.png".to_string(),
             "---\n".to_string(),
             if update_daily && daily_path.exists() && daily_path.is_file() {
                 format!("[[{date}]]\n")
@@ -1009,6 +1078,70 @@ impl Application {
     }
 
     ///
+    /// Add the banner to the notes.
+    ///
+    async fn add_banner(
+        &self,
+        file_name: &str,
+        note_type: &str,
+        note_tags: Option<Vec<&str>>,
+    ) -> Result<(), Error> {
+        let root = self.check_root()?;
+        let note_tags = Arc::new(note_tags);
+        let errors = stream::iter(WalkDir::new(root).into_iter())
+            .filter_map(|e| async move {
+                if let Ok(e) = e {
+                    if e.path().exists()
+                        && e.path().is_file()
+                        && e.path().extension().and_then(OsStr::to_str) == Some("md")
+                    {
+                        return Some(e);
+                    }
+                }
+
+                None
+            })
+            .zip(stream::iter(repeat_with(|| note_tags.clone())))
+            .then(|(e, note_tags)| async move {
+                // Read content of the daily note.
+                let mut buffer = String::new();
+                {
+                    let mut file = File::open(e.path()).await?;
+                    file.read_to_string(&mut buffer).await?;
+                }
+
+                if let Ok(mut m) = meta::Metadata::from_str(buffer.as_str()) {
+                    if let Some(nt) = m.get_type() {
+                        if nt == note_type {
+                            if let Some(ref note_tags) = *note_tags {
+                                if let Some(meta_tags) = m.get_tags() {
+                                    for tag in note_tags.iter() {
+                                        if !meta_tags.contains(tag) {
+                                            return Ok(()) as Result<(), Error>;
+                                        }
+                                    }
+                                }
+                            }
+
+                            let _ = m.set_banner(file_name);
+                        }
+                    }
+                }
+
+                Ok(()) as Result<(), Error>
+            })
+            .filter_map(|r| async move { r.err() })
+            .collect::<Vec<_>>()
+            .await;
+
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(Error::MultipleExecutorsError(errors))
+        }
+    }
+
+    ///
     /// Add the calendar to the monthly note.
     ///
     async fn add_calendar(&self, year: i32, month: u32) -> Result<(), Error> {
@@ -1086,7 +1219,7 @@ impl Application {
     ///
     /// Add a creation date to the note.
     ///
-    async fn add_creation_date(&self, note_type: &str) -> Result<(), Error> {
+    async fn add_created(&self, note_type: &str) -> Result<(), Error> {
         let root = self.check_root()?;
         let errors = stream::iter(WalkDir::new(root).into_iter())
             .filter_map(|e| async move {
