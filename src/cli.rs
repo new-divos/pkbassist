@@ -231,7 +231,7 @@ pub enum AddedObject {
         /// The year number.
         ///
         #[arg(
-            default_value_t = chrono::offset::Local::today().year(), 
+            default_value_t = chrono::offset::Local::now().year(), 
             short, long
         )]
         year: i32,
@@ -240,7 +240,7 @@ pub enum AddedObject {
         /// The month number.
         /// 
         #[arg(
-            default_value_t = chrono::offset::Local::today().month(), 
+            default_value_t = chrono::offset::Local::now().month(), 
             short, long
         )]
         month: u32,

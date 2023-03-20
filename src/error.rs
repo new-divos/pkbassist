@@ -34,11 +34,8 @@ pub enum Error {
     #[error("unknown media type")]
     UnknownMediaType,
 
-    #[error("illegal year number {0}")]
-    IllegalYearNumber(i32),
-
-    #[error("illegal month number {0}")]
-    IllegalMonthNumber(u32),
+    #[error("illegal date")]
+    IllegalDate,
 
     #[error("illegal path {0}")]
     IllegalPath(String),

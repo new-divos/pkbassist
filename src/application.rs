@@ -790,7 +790,6 @@ impl Application {
                     image_url
                         .path_segments()
                         .ok_or_else(|| Error::IllegalURL(image_url.clone()))?
-                        .into_iter()
                         .last()
                         .ok_or_else(|| Error::IllegalURL(image_url.clone()))?,
                 );
@@ -1147,11 +1146,8 @@ impl Application {
     async fn add_calendar(&self, year: i32, month: u32) -> Result<(), Error> {
         let _ = self.check_root()?;
 
-        if year <= 0 {
-            return Err(Error::IllegalYearNumber(year));
-        }
-        if !(1..=12).contains(&month) {
-            return Err(Error::IllegalMonthNumber(month));
+        if year <= 0 || !(1..=12).contains(&month) {
+            return Err(Error::IllegalDate);
         }
 
         let monthly_path = self
@@ -1168,7 +1164,8 @@ impl Application {
             "|:--:|:--:|:--:|:--:|:--:|:--:|:--:|".to_string(),
         ];
 
-        let mut current = NaiveDate::from_ymd(year, month, 1);
+        let mut current =
+            NaiveDate::from_ymd_opt(year, month, 1).ok_or_else(|| Error::IllegalDate)?;
         let mut n = current.weekday().num_days_from_monday() as usize;
 
         let mut row = "|".to_string();
@@ -1186,7 +1183,7 @@ impl Application {
             }
 
             let prev = current;
-            current = current.succ();
+            current = current.succ_opt().ok_or_else(|| Error::IllegalDate)?;
             if current.month() != month {
                 n = prev.weekday().num_days_from_monday() as usize;
                 row.push_str("    |".repeat(6 - n).as_str());
