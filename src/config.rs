@@ -65,6 +65,25 @@ pub(crate) struct NASAAPoDAPIConfig {
     ///
     #[serde(rename = "Version")]
     version: apod::Version,
+
+    ///
+    /// The NASA Astronomy Picture of the Day Note Banner.
+    ///
+    #[serde(rename = "Banner", skip_serializing_if = "Option::is_none")]
+    banner: Option<String>,
+
+    ///
+    /// The NASA Astronomy Picture of the Day daily link prefix.
+    ///
+    #[serde(rename = "Prefix", skip_serializing_if = "Option::is_none")]
+    prefix: Option<String>,
+
+    ///
+    /// Insert the NASA Astronomy Picture of the Day daily link
+    /// after the following string.
+    ///
+    #[serde(rename = "Marker", skip_serializing_if = "Option::is_none")]
+    marker: Option<String>,
 }
 
 ///
@@ -318,7 +337,7 @@ impl Config {
             self.vault_config
                 .root
                 .as_ref()
-                .map(|path_buf| Cow::Owned(path_buf.join("Base").join("Issues")))
+                .map(|path_buf| Cow::Owned(path_buf.join("Base")))
         }
     }
 
@@ -341,7 +360,7 @@ impl Config {
             self.vault_config
                 .root
                 .as_ref()
-                .map(|path_buf| Cow::Owned(path_buf.join("Base").join("Issues")))
+                .map(|path_buf| Cow::Owned(path_buf.join("Base")))
         }
     }
 
@@ -354,7 +373,7 @@ impl Config {
     }
 
     ///
-    /// Get NASA Astronomy Picture of the Day API Key.
+    /// Get the NASA Astronomy Picture of the Day API Key.
     ///
     #[inline]
     pub fn apod_key(&self) -> Option<&str> {
@@ -362,11 +381,63 @@ impl Config {
     }
 
     ///
-    /// Set NASA Astronomy Picture of the Day API Key.
+    /// Set the NASA Astronomy Picture of the Day API Key.
     ///
     #[inline]
     pub(crate) fn set_apod_key(&mut self, value: &str) {
         self.apod_config.key = Some(value.to_string());
+    }
+
+    ///
+    /// Get the NASA Astronomy Picture of the Day Note Banner.
+    ///
+    #[inline]
+    pub fn apod_banner(&self) -> Option<&str> {
+        self.apod_config.banner.as_deref()
+    }
+
+    ///
+    /// Set the NASA Astronomy Picture of the Day Note Banner.
+    ///
+    #[inline]
+    pub(crate) fn set_apod_banner(&mut self, value: &str) {
+        self.apod_config.banner = Some(value.to_string())
+    }
+
+    ///
+    /// Get the NASA Astronomy Picture of the Day daily
+    /// link prefix.
+    ///
+    #[inline]
+    pub fn apod_prefix(&self) -> Option<&str> {
+        self.apod_config.prefix.as_deref()
+    }
+
+    ///
+    /// Set the NASA Astronomy Picture of the Day daily
+    /// link prefix.
+    ///
+    #[inline]
+    pub(crate) fn set_apod_prefix(&mut self, value: &str) {
+        self.apod_config.prefix = Some(value.to_string())
+    }
+
+    ///
+    /// Get the NASA Astronomy Picture of the Day daily
+    /// link marker.
+    ///
+    #[inline]
+    pub fn apod_marker(&self) -> Option<&str> {
+        self.apod_config.marker.as_deref()
+    }
+
+    ///
+    /// Set the NASA Astronomy Picture of the Day daily
+    /// link marker.
+    ///
+    #[inline]
+    pub(crate) fn set_apod_marker(&mut self, value: &str) {
+        self.apod_config.marker = Some(value.to_string())
     }
 
     ///

@@ -852,21 +852,30 @@ impl Application {
             "issue: APoD".to_string(),
             format!("date: {date}"),
             "tags:\n- issue/apod\n- astronomy".to_string(),
-            "banner: Banners/apod-banner.png".to_string(),
-            "---\n".to_string(),
-            if update_daily && daily_path.exists() && daily_path.is_file() {
-                format!("[[{date}]]\n")
-            } else {
-                if update_daily {
-                    log::warn!("Irrelevant daily path \"{}\"", daily_path.display());
-                }
-
-                format!("{date}\n")
-            },
-            format!("# {}\n", response.title()),
-            format!("{media_ref}\n"),
-            format!("**Explanation:** {}\n", response.explanation()),
         ];
+
+        if let Some(banner) = self.config.apod_banner() {
+            content.push(format!("banner: {banner}"));
+        }
+
+        content.extend(
+            vec![
+                "---\n".to_string(),
+                if update_daily && daily_path.exists() && daily_path.is_file() {
+                    format!("[[{date}]]\n")
+                } else {
+                    if update_daily {
+                        log::warn!("Irrelevant daily path \"{}\"", daily_path.display());
+                    }
+
+                    format!("{date}\n")
+                },
+                format!("# {}\n", response.title()),
+                format!("{media_ref}\n"),
+                format!("**Explanation:** {}\n", response.explanation()),
+            ]
+            .into_iter(),
+        );
 
         if let Some(copyright) = response.copyright() {
             content.push(format!("*Image copyright:* {copyright}©\n"));
@@ -891,8 +900,27 @@ impl Application {
                 file.read_to_string(&mut buffer).await?;
             }
 
-            let line = format!("\n\n⭐ [[ISS.APoD.{file_date}|Astronomy Picture of the Day]]\n");
-            buffer.push_str(line.as_str());
+            let prefix = self.config.apod_prefix();
+            let line = if let Some(prefix) = prefix {
+                format!("{prefix} [[ISS.APoD.{file_date}|Astronomy Picture of the Day]]")
+            } else {
+                format!("[[ISS.APoD.{file_date}|Astronomy Picture of the Day]]")
+            };
+
+            let mut lines: Vec<_> = buffer.lines().collect();
+            let marker = self.config.apod_marker();
+            if let Some(marker) = marker {
+                if let Some(idx) = lines.iter().position(|s| *s == marker) {
+                    println!("{}", idx);
+                    lines.insert(idx + 1, line.as_str())
+                } else {
+                    lines.push(line.as_str());
+                }
+            } else {
+                lines.push(line.as_str());
+            }
+
+            buffer = lines.join("\n");
 
             // Write updated content of the daily note.
             {
@@ -1368,6 +1396,18 @@ impl Application {
 
             "apod.key" => {
                 config.set_apod_key(value);
+            }
+
+            "apod.banner" => {
+                config.set_apod_banner(value);
+            }
+
+            "apod.prefix" => {
+                config.set_apod_prefix(value);
+            }
+
+            "apod.marker" => {
+                config.set_apod_marker(value);
             }
 
             "refbar.spacing" => {
