@@ -911,7 +911,6 @@ impl Application {
             let marker = self.config.apod_marker();
             if let Some(marker) = marker {
                 if let Some(idx) = lines.iter().position(|s| *s == marker) {
-                    println!("{}", idx);
                     lines.insert(idx + 1, line.as_str())
                 } else {
                     lines.push(line.as_str());
