@@ -187,26 +187,6 @@ impl Application {
 
                 // Add a creation date to the notes.
                 AddedObject::Created { note_type } => self.add_created(note_type.as_str()).await?,
-
-                // Add the refbar to the note.
-                AddedObject::RefBar {
-                    note,
-                    references,
-                    spacing,
-                    leader,
-                } => {
-                    self.add_refbar(
-                        note.as_str(),
-                        references
-                            .iter()
-                            .map(AsRef::as_ref)
-                            .collect::<Vec<_>>()
-                            .as_slice(),
-                        spacing.unwrap_or(10),
-                        leader.as_deref().unwrap_or(""),
-                    )
-                    .await?
-                }
             },
 
             // Rename the banner file name.
@@ -1297,19 +1277,6 @@ impl Application {
     }
 
     ///
-    /// Add the refbar to the note.
-    ///
-    async fn add_refbar(
-        &self,
-        _note: &str,
-        _refs: &[&str],
-        _spacing: usize,
-        _leader: &str,
-    ) -> Result<(), Error> {
-        Ok(())
-    }
-
-    ///
     /// Rename the banner file name.
     ///
     async fn rename_banner(&self, old_name: &str, new_name: &str) -> Result<(), Error> {
@@ -1383,14 +1350,14 @@ impl Application {
                 config.set_daily_path(path);
             }
 
-            "vault.apod" => {
+            "vault.base" => {
                 let path = Path::new(value);
-                config.set_apod_path(path);
+                config.set_base_path(path);
             }
 
-            "vault.twir" => {
+            "apod.path" => {
                 let path = Path::new(value);
-                config.set_twir_path(path);
+                config.set_apod_path(path);
             }
 
             "apod.key" => {
@@ -1409,15 +1376,9 @@ impl Application {
                 config.set_apod_marker(value);
             }
 
-            "refbar.spacing" => {
-                let spacing = value
-                    .parse::<usize>()
-                    .map_err(|_| Error::IllegalConfValue(value.to_string()))?;
-                config.set_refbar_spacing(spacing);
-            }
-
-            "refbar.leader" => {
-                config.set_refbar_leader(value);
+            "twir.path" => {
+                let path = Path::new(value);
+                config.set_twir_path(path);
             }
 
             _ => return Err(Error::IllegalConfKey(value.to_string())),

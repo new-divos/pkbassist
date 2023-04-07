@@ -257,36 +257,6 @@ pub enum AddedObject {
         #[arg(short = 't', long = "type", required = true)]
         note_type: String,
     },
-
-    ///
-    /// Add the reference bar to the note.
-    /// 
-    #[command(name = "refbar")]
-    RefBar {
-        ///
-        /// The note name.
-        /// 
-        #[arg(short, long, required = true)]
-        note: String,
-
-        ///
-        /// The references list.
-        /// 
-        #[arg(short, long = "ref", required = false)]
-        references: Vec<String>,
-
-        ///
-        /// The spacing between references.
-        /// 
-        #[arg(long, required = false)]
-        spacing: Option<usize>,
-
-        ///
-        /// The leader of the reference bar.
-        /// 
-        #[arg(long, required = false)]
-        leader: Option<String>,
-    },
 }
 
 ///

@@ -37,23 +37,23 @@ pub(crate) struct VaultConfig {
     daily_path: Option<PathBuf>,
 
     ///
-    /// The Astronomy Picture of the Day directory of the notes set.
+    /// The base directory of the notes set.
     ///
-    #[serde(rename = "APoD", skip_serializing_if = "Option::is_none")]
-    apod_path: Option<PathBuf>,
-
-    ///
-    /// The This Day in Rust directory of the notes set.
-    ///
-    #[serde(rename = "TWiR", skip_serializing_if = "Option::is_none")]
-    twir_path: Option<PathBuf>,
+    #[serde(rename = "Base", skip_serializing_if = "Option::is_none")]
+    base_path: Option<PathBuf>,
 }
 
 ///
-/// The NASA Astronomy Picture of the Day API configuration.
+/// The NASA Astronomy Picture of the Day notes configuration.
 ///
 #[derive(Debug, Serialize, Deserialize, Default, Clone)]
-pub(crate) struct NASAAPoDAPIConfig {
+pub(crate) struct APoDConfig {
+    ///
+    /// The NASA Astronomy Picture of the Day download path.
+    ///
+    #[serde(rename = "Path", skip_serializing_if = "Option::is_none")]
+    path: Option<PathBuf>,
+
     ///
     /// The NASA Astronomy Picture of the Day API Key.
     ///
@@ -87,30 +87,15 @@ pub(crate) struct NASAAPoDAPIConfig {
 }
 
 ///
-/// The reference bar (refbar) configuration.
+/// This Week in Rust notes configuration.
 ///
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub(crate) struct RefBarConfig {
+#[derive(Debug, Serialize, Deserialize, Default, Clone)]
+pub(crate) struct TWiRConfig {
     ///
-    /// The spacing between references.
+    /// This Week in Rust download path.
     ///
-    #[serde(rename = "Spacing", skip_serializing_if = "Option::is_none")]
-    spacing: Option<usize>,
-
-    ///
-    /// The leader of the reference bar.
-    ///
-    #[serde(rename = "Leader", skip_serializing_if = "Option::is_none")]
-    leader: Option<String>,
-}
-
-impl Default for RefBarConfig {
-    fn default() -> Self {
-        Self {
-            spacing: Some(10),
-            leader: Default::default(),
-        }
-    }
+    #[serde(rename = "Path", skip_serializing_if = "Option::is_none")]
+    path: Option<PathBuf>,
 }
 
 ///
@@ -137,16 +122,16 @@ pub struct Config {
     vault_config: VaultConfig,
 
     ///
-    /// The NASA Astronomy Picture of the Day API configuration.
+    /// The NASA Astronomy Picture of the Day notes configuration.
     ///
     #[serde(rename = "APoD")]
-    apod_config: NASAAPoDAPIConfig,
+    apod_config: APoDConfig,
 
     ///
-    /// The reference bar (refbar) configuration.
+    /// This Week in Rust notes configuration.
     ///
-    #[serde(rename = "RefBar")]
-    refbar_config: RefBarConfig,
+    #[serde(rename = "TWiR")]
+    twir_config: TWiRConfig,
 }
 
 impl Config {
@@ -177,7 +162,7 @@ impl Config {
             log_file,
             vault_config: Default::default(),
             apod_config: Default::default(),
-            refbar_config: Default::default(),
+            twir_config: Default::default(),
         })
     }
 
@@ -252,10 +237,10 @@ impl Config {
     ///
     /// Set the root directory of the vault.
     ///
-    pub(crate) fn set_root(&mut self, path: &Path, all: bool) -> Result<(), Error> {
+    pub(crate) fn set_root(&mut self, path: &Path, update: bool) -> Result<(), Error> {
         self.vault_config.root = Some(PathBuf::from(path));
 
-        if all {
+        if update {
             self.vault_config.files_path = None;
             self.vault_config.files_path = Some(PathBuf::from(
                 self.files_path().ok_or(Error::VaultRootIsAbsent)?,
@@ -266,14 +251,9 @@ impl Config {
                 self.daily_path().ok_or(Error::VaultRootIsAbsent)?,
             ));
 
-            self.vault_config.apod_path = None;
-            self.vault_config.apod_path = Some(PathBuf::from(
-                self.apod_path().ok_or(Error::VaultRootIsAbsent)?,
-            ));
-
-            self.vault_config.twir_path = None;
-            self.vault_config.twir_path = Some(PathBuf::from(
-                self.twir_path().ok_or(Error::VaultRootIsAbsent)?,
+            self.vault_config.base_path = None;
+            self.vault_config.base_path = Some(PathBuf::from(
+                self.base_path().ok_or(Error::VaultRootIsAbsent)?,
             ));
         }
 
@@ -327,11 +307,11 @@ impl Config {
     }
 
     ///
-    /// Get the Astronomy Picture of the Day directory of the notes set.
+    /// Get the base directory of the notes set.
     ///
     #[inline]
-    pub fn apod_path(&self) -> Option<Cow<Path>> {
-        if let Some(ref path_buf) = self.vault_config.apod_path {
+    pub fn base_path(&self) -> Option<Cow<Path>> {
+        if let Some(ref path_buf) = self.vault_config.base_path {
             Some(Cow::Borrowed(path_buf.as_path()))
         } else {
             self.vault_config
@@ -342,11 +322,31 @@ impl Config {
     }
 
     ///
+    /// Set the base directory of the notes set.
+    ///
+    #[inline]
+    pub(crate) fn set_base_path(&mut self, path: &Path) {
+        self.vault_config.base_path = Some(PathBuf::from(path));
+    }
+
+    ///
+    /// Get the Astronomy Picture of the Day directory of the notes set.
+    ///
+    #[inline]
+    pub fn apod_path(&self) -> Option<Cow<Path>> {
+        if let Some(ref path_buf) = self.apod_config.path {
+            Some(Cow::Borrowed(path_buf.as_path()))
+        } else {
+            self.base_path()
+        }
+    }
+
+    ///
     /// Set the Astronomy Picture of the Day directory of the notes set.
     ///
     #[inline]
     pub(crate) fn set_apod_path(&mut self, path: &Path) {
-        self.vault_config.apod_path = Some(PathBuf::from(path));
+        self.apod_config.path = Some(PathBuf::from(path));
     }
 
     ///
@@ -354,7 +354,7 @@ impl Config {
     ///
     #[inline]
     pub fn twir_path(&self) -> Option<Cow<Path>> {
-        if let Some(ref path_buf) = self.vault_config.twir_path {
+        if let Some(ref path_buf) = self.twir_config.path {
             Some(Cow::Borrowed(path_buf.as_path()))
         } else {
             self.vault_config
@@ -369,7 +369,7 @@ impl Config {
     ///
     #[inline]
     pub(crate) fn set_twir_path(&mut self, path: &Path) {
-        self.vault_config.twir_path = Some(PathBuf::from(path));
+        self.twir_config.path = Some(PathBuf::from(path));
     }
 
     ///
@@ -446,41 +446,5 @@ impl Config {
     #[inline]
     pub fn apod_version(&self) -> apod::Version {
         self.apod_config.version
-    }
-
-    ///
-    /// Get the spacing between references.
-    ///
-    #[inline]
-    pub fn refbar_spacing(&self) -> usize {
-        if let Some(spacing) = self.refbar_config.spacing {
-            spacing
-        } else {
-            10
-        }
-    }
-
-    ///
-    /// Set the spacing between references.
-    ///
-    #[inline]
-    pub(crate) fn set_refbar_spacing(&mut self, value: usize) {
-        self.refbar_config.spacing = Some(value);
-    }
-
-    ///
-    /// Get the leader of the reference bar.
-    ///
-    #[inline]
-    pub fn refbar_leader(&self) -> Option<&str> {
-        self.refbar_config.leader.as_deref()
-    }
-
-    ///
-    /// Set the leader of the reference bar.
-    ///
-    #[inline]
-    pub(crate) fn set_refbar_leader(&mut self, value: &str) {
-        self.refbar_config.leader = Some(value.to_string());
     }
 }
