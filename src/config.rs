@@ -1,6 +1,7 @@
 use std::{
     borrow::Cow,
     path::{Path, PathBuf},
+    string::ToString,
 };
 
 use directories::ProjectDirs;
@@ -67,7 +68,7 @@ pub(crate) struct APoDConfig {
     version: apod::Version,
 
     ///
-    /// The NASA Astronomy Picture of the Day Note Banner.
+    /// The NASA Astronomy Picture of the Day note banner.
     ///
     #[serde(rename = "Banner", skip_serializing_if = "Option::is_none")]
     banner: Option<String>,
@@ -96,6 +97,25 @@ pub(crate) struct TWiRConfig {
     ///
     #[serde(rename = "Path", skip_serializing_if = "Option::is_none")]
     path: Option<PathBuf>,
+
+    ///
+    /// This Week in Rust note banner.
+    ///
+    #[serde(rename = "Banner", skip_serializing_if = "Option::is_none")]
+    banner: Option<String>,
+
+    ///
+    /// This Week in Rust daily link prefix.
+    ///
+    #[serde(rename = "Prefix", skip_serializing_if = "Option::is_none")]
+    prefix: Option<String>,
+
+    ///
+    /// Insert the This Week in Rust daily link
+    /// after the following string.
+    ///
+    #[serde(rename = "Marker", skip_serializing_if = "Option::is_none")]
+    marker: Option<String>,
 }
 
 ///
@@ -384,12 +404,12 @@ impl Config {
     /// Set the NASA Astronomy Picture of the Day API Key.
     ///
     #[inline]
-    pub(crate) fn set_apod_key(&mut self, value: &str) {
+    pub(crate) fn set_apod_key<S: ToString>(&mut self, value: S) {
         self.apod_config.key = Some(value.to_string());
     }
 
     ///
-    /// Get the NASA Astronomy Picture of the Day Note Banner.
+    /// Get the NASA Astronomy Picture of the Day note banner.
     ///
     #[inline]
     pub fn apod_banner(&self) -> Option<&str> {
@@ -397,10 +417,10 @@ impl Config {
     }
 
     ///
-    /// Set the NASA Astronomy Picture of the Day Note Banner.
+    /// Set the NASA Astronomy Picture of the Day note banner.
     ///
     #[inline]
-    pub(crate) fn set_apod_banner(&mut self, value: &str) {
+    pub(crate) fn set_apod_banner<S: ToString>(&mut self, value: S) {
         self.apod_config.banner = Some(value.to_string())
     }
 
@@ -418,7 +438,7 @@ impl Config {
     /// link prefix.
     ///
     #[inline]
-    pub(crate) fn set_apod_prefix(&mut self, value: &str) {
+    pub(crate) fn set_apod_prefix<S: ToString>(&mut self, value: S) {
         self.apod_config.prefix = Some(value.to_string())
     }
 
@@ -436,7 +456,7 @@ impl Config {
     /// link marker.
     ///
     #[inline]
-    pub(crate) fn set_apod_marker(&mut self, value: &str) {
+    pub(crate) fn set_apod_marker<S: ToString>(&mut self, value: S) {
         self.apod_config.marker = Some(value.to_string())
     }
 
@@ -446,5 +466,53 @@ impl Config {
     #[inline]
     pub fn apod_version(&self) -> apod::Version {
         self.apod_config.version
+    }
+
+    ///
+    /// Get This Week in Rust note banner.
+    ///
+    #[inline]
+    pub fn twir_banner(&self) -> Option<&str> {
+        self.twir_config.banner.as_deref()
+    }
+
+    ///
+    /// Set This Week in Rust note banner.
+    ///
+    #[inline]
+    pub(crate) fn set_twir_banner<S: ToString>(&mut self, value: S) {
+        self.twir_config.banner = Some(value.to_string())
+    }
+
+    ///
+    /// Get This Week in Rust daily link prefix.
+    ///
+    #[inline]
+    pub fn twir_prefix(&self) -> Option<&str> {
+        self.twir_config.prefix.as_deref()
+    }
+
+    ///
+    /// Set This Week in Rust daily link prefix.
+    ///
+    #[inline]
+    pub(crate) fn set_twir_prefix<S: ToString>(&mut self, value: S) {
+        self.twir_config.prefix = Some(value.to_string())
+    }
+
+    ///
+    /// Get This Week in Rust daily link marker.
+    ///
+    #[inline]
+    pub fn twir_marker(&self) -> Option<&str> {
+        self.twir_config.marker.as_deref()
+    }
+
+    ///
+    /// Set This Week in Rust daily link marker.
+    ///
+    #[inline]
+    pub(crate) fn set_twir_marker<S: ToString>(&mut self, value: S) {
+        self.twir_config.marker = Some(value.to_string())
     }
 }

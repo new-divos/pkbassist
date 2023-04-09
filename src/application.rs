@@ -201,8 +201,8 @@ impl Application {
             Command::Config {
                 ref key,
                 ref value,
-                all,
-            } => self.configure(key.as_str(), value.as_str(), all).await?,
+                update,
+            } => self.configure(key.as_str(), value.as_str(), update).await?,
         }
 
         Ok(())
@@ -881,25 +881,12 @@ impl Application {
             }
 
             let prefix = self.config.apod_prefix();
-            let line = if let Some(prefix) = prefix {
+            let link = if let Some(prefix) = prefix {
                 format!("{prefix} [[ISS.APoD.{file_date}|Astronomy Picture of the Day]]")
             } else {
                 format!("[[ISS.APoD.{file_date}|Astronomy Picture of the Day]]")
             };
-
-            let mut lines: Vec<_> = buffer.lines().collect();
-            let marker = self.config.apod_marker();
-            if let Some(marker) = marker {
-                if let Some(idx) = lines.iter().position(|s| *s == marker) {
-                    lines.insert(idx + 1, line.as_str())
-                } else {
-                    lines.push(line.as_str());
-                }
-            } else {
-                lines.push(line.as_str());
-            }
-
-            buffer = lines.join("\n");
+            let buffer = Self::modify_daily(buffer, link, self.config.apod_marker());
 
             // Write updated content of the daily note.
             {
@@ -943,17 +930,20 @@ impl Application {
             format!("date: {date}\ntags:\n- rust\n- issue/twir\naliases:"),
             format!("- \"{}\"", note.title()),
             format!("- \"TWiR {date} This Week in Rust {number}\""),
-            format!(
-                "url: {}\nbanner: \"![[rust-language-banner.jpg]]\"\nbanner_icon: 🗞️\n---\n",
-                note.url()
-            ),
+            format!("url: {}", note.url()),
         ];
+
+        if let Some(banner) = self.config.twir_banner() {
+            content.push(format!("banner: {banner}"));
+        }
+
+        content.push("---\n".to_string());
 
         let next = number + 1;
         if number > 1 {
             let prev = number - 1;
             content.push(format!(
-                "<< [[ISS.TWiR.{prev}|{prev}]] | [[ISS.TWiR.{next}-|{next}]] >>\n"
+                "<< [[ISS.TWiR.{prev}|{prev}]] | [[ISS.TWiR.{next}|{next}]] >>\n"
             ));
         } else {
             content.push(format!("| [[ISS.TWiR.{next}|{next}]] >>\n"));
@@ -977,12 +967,12 @@ impl Application {
         content.push(md_content);
 
         let content = content.join("\n");
-        let note_path = path.join(format!("ISS.TWiR.{number}-.md"));
+        let note_path = path.join(format!("ISS.TWiR.{number}.md"));
         {
             let mut file = File::create(note_path.as_path()).await?;
             file.write_all(content.as_bytes()).await?;
-            log::trace!(
-                "The This Weel in Rust note \"{}\" has been created",
+            log::info!(
+                "The This Week in Rust note \"{}\" has been created",
                 note_path.display()
             );
         }
@@ -995,14 +985,18 @@ impl Application {
                 file.read_to_string(&mut buffer).await?;
             }
 
-            let line = format!("\n\n📰 [[ISS.TWiR.{number}-|This Week in Rust {number}]]\n");
-            buffer.push_str(line.as_str());
+            let link = if let Some(prefix) = self.config.twir_prefix() {
+                format!("{prefix} [[ISS.TWiR.{number}|This Week in Rust {number}]]")
+            } else {
+                format!("[[ISS.TWiR.{number}|This Week in Rust {number}]]")
+            };
+            let buffer = Self::modify_daily(buffer, link, self.config.twir_marker());
 
             // Write updated content of the daily note.
             {
                 let mut file = File::create(daily_path.as_path()).await?;
                 file.write_all(buffer.as_bytes()).await?;
-                log::trace!(
+                log::info!(
                     "The daily note \"{}\" has been updated",
                     daily_path.display()
                 );
@@ -1332,12 +1326,12 @@ impl Application {
     ///
     /// Configure the application.
     ///
-    async fn configure(&self, key: &str, value: &str, all: bool) -> Result<(), Error> {
+    async fn configure(&self, key: &str, value: &str, update: bool) -> Result<(), Error> {
         let mut config = self.config.clone();
         match key.to_lowercase().as_str() {
             "vault.root" => {
                 let path = Path::new(value);
-                config.set_root(path, all)?;
+                config.set_root(path, update)?;
             }
 
             "vault.files" => {
@@ -1381,6 +1375,18 @@ impl Application {
                 config.set_twir_path(path);
             }
 
+            "twir.banner" => {
+                config.set_twir_banner(value);
+            }
+
+            "twir.prefix" => {
+                config.set_twir_prefix(value);
+            }
+
+            "twir.marker" => {
+                config.set_twir_marker(value);
+            }
+
             _ => return Err(Error::IllegalConfKey(value.to_string())),
         }
 
@@ -1402,5 +1408,32 @@ impl Application {
         } else {
             Err(Error::VaultRootIsAbsent)
         }
+    }
+
+    ///
+    /// Modify daily page.
+    ///
+    fn modify_daily<C: AsRef<str>, L: AsRef<str>>(
+        content: C,
+        link: L,
+        marker: Option<&str>,
+    ) -> String {
+        let content = content.as_ref();
+        let link = link.as_ref();
+
+        let mut lines: Vec<_> = content.lines().collect();
+        if let Some(marker) = marker {
+            if let Some(idx) = lines.iter().position(|s| *s == marker) {
+                lines.insert(idx + 1, link)
+            } else {
+                lines.push(link);
+                lines.push("\n");
+            }
+        } else {
+            lines.push(link);
+            lines.push("\n");
+        }
+
+        lines.join("\n")
     }
 }

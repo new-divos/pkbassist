@@ -133,7 +133,7 @@ pub enum Command {
         /// Change all dependencies.
         ///
         #[arg(long, action = ArgAction::SetTrue)]
-        all: bool,
+        update: bool,
     },
 }
 
