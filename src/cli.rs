@@ -153,6 +153,12 @@ pub enum Note {
         ///
         #[arg(short = 'd', long = "update-daily", action = ArgAction::SetTrue)]
         update_daily: bool,
+
+        ///
+        /// List of subtags of the parent tag #astronomy.
+        /// 
+        #[arg(short = 't', long = "subtag", required = false)]
+        subtags: Option<Vec<String>>,
     },
 
     #[command(name = "twir")]

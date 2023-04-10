@@ -149,7 +149,10 @@ impl Application {
             // Grab note into notes set.
             Command::Grab { ref note } => match note {
                 // Grab NASA Astronomy Picture of the Day note.
-                Note::APoD { update_daily } => self.grab_apod(*update_daily).await?,
+                Note::APoD {
+                    update_daily,
+                    subtags,
+                } => self.grab_apod(*update_daily, subtags).await?,
 
                 // Grab This Week in Rust note.
                 Note::TWiR {
@@ -749,7 +752,11 @@ impl Application {
     ///
     /// Grab the NASA's Astronomy Picture of the Day issue.
     ///
-    async fn grab_apod(&self, update_daily: bool) -> Result<(), Error> {
+    async fn grab_apod(
+        &self,
+        update_daily: bool,
+        subtags: &Option<Vec<String>>,
+    ) -> Result<(), Error> {
         let _ = self.check_root()?;
 
         let nasa_key = self.config.apod_key().ok_or(Error::IllegalNASAKey)?;
@@ -826,14 +833,34 @@ impl Application {
             .ok_or(Error::VaultRootIsAbsent)?
             .join(format!("{date}.md"));
 
+        let supertag = "astronomy".to_string();
+        let mut tags: HashSet<String> = HashSet::new();
+        if let Some(subtags) = subtags {
+            if subtags.is_empty() {
+                tags.insert(supertag);
+            } else {
+                tags.extend(subtags.iter().map(|e| {
+                    let s = e.to_lowercase();
+                    if s.starts_with(supertag.as_str()) {
+                        s
+                    } else {
+                        format!("{supertag}/{s}")
+                    }
+                }));
+            }
+        } else {
+            tags.insert(supertag);
+        }
+
         let mut content = vec![
             "---\ntype: issue".to_string(),
             format!("name: \"{}\"", response.title()),
             "issue: APoD".to_string(),
             format!("date: {date}"),
-            "tags:\n- issue/apod\n- astronomy".to_string(),
+            "tags:\n- issue/apod".to_string(),
         ];
 
+        content.extend(tags.into_iter().map(|e| format!("- {e}")));
         if let Some(banner) = self.config.apod_banner() {
             content.push(format!("banner: {banner}"));
         }
