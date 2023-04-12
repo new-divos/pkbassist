@@ -85,6 +85,12 @@ pub(crate) struct APoDConfig {
     ///
     #[serde(rename = "Marker", skip_serializing_if = "Option::is_none")]
     marker: Option<String>,
+
+    ///
+    /// The NASA Astronomy Picture of the Day icon.
+    ///
+    #[serde(rename = "Icon", skip_serializing_if = "Option::is_none")]
+    icon: Option<String>,
 }
 
 ///
@@ -116,6 +122,12 @@ pub(crate) struct TWiRConfig {
     ///
     #[serde(rename = "Marker", skip_serializing_if = "Option::is_none")]
     marker: Option<String>,
+
+    ///
+    /// The This Week in Rust icon.
+    ///
+    #[serde(rename = "Icon", skip_serializing_if = "Option::is_none")]
+    icon: Option<String>,
 }
 
 ///
@@ -461,7 +473,23 @@ impl Config {
     }
 
     ///
-    /// Get NASA Astronomy Picture of the Day API Version.
+    /// Get the NASA Astronomy Picture of the Day icon.
+    ///
+    #[inline]
+    pub fn apod_icon(&self) -> Option<&str> {
+        self.apod_config.icon.as_deref()
+    }
+
+    ///
+    /// Set the NASA Astronomy Picture of the Day icon.
+    ///
+    #[inline]
+    pub(crate) fn set_apod_icon<S: ToString>(&mut self, value: S) {
+        self.apod_config.icon = Some(value.to_string())
+    }
+
+    ///
+    /// Get the NASA Astronomy Picture of the Day API Version.
     ///
     #[inline]
     pub fn apod_version(&self) -> apod::Version {
@@ -514,5 +542,20 @@ impl Config {
     #[inline]
     pub(crate) fn set_twir_marker<S: ToString>(&mut self, value: S) {
         self.twir_config.marker = Some(value.to_string())
+    }
+
+    ///
+    /// Get the This Week in Rust icon.
+    ///
+    #[inline]
+    pub fn twir_icon(&self) -> Option<&str> {
+        self.twir_config.icon.as_deref()
+    }
+
+    ///
+    /// Set the This Week in Rust icon.
+    ///
+    pub(crate) fn set_twir_icon<S: ToString>(&mut self, value: S) {
+        self.twir_config.icon = Some(value.to_string());
     }
 }

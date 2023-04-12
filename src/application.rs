@@ -864,6 +864,9 @@ impl Application {
         if let Some(banner) = self.config.apod_banner() {
             content.push(format!("banner: {banner}"));
         }
+        if let Some(icon) = self.config.apod_icon() {
+            content.push(format!("banner_icon: {icon}"));
+        }
 
         content.extend(
             vec![
@@ -930,7 +933,7 @@ impl Application {
     }
 
     ///
-    /// Grab This Week in Rust single note.
+    /// Grab the This Week in Rust single note.
     ///
     async fn grab_twir_note(
         &self,
@@ -962,6 +965,9 @@ impl Application {
 
         if let Some(banner) = self.config.twir_banner() {
             content.push(format!("banner: {banner}"));
+        }
+        if let Some(icon) = self.config.twir_icon() {
+            content.push(format!("banner_icon: {icon}"));
         }
 
         content.push("---\n".to_string());
@@ -1397,6 +1403,10 @@ impl Application {
                 config.set_apod_marker(value);
             }
 
+            "apod.icon" => {
+                config.set_apod_icon(value);
+            }
+
             "twir.path" => {
                 let path = Path::new(value);
                 config.set_twir_path(path);
@@ -1412,6 +1422,10 @@ impl Application {
 
             "twir.marker" => {
                 config.set_twir_marker(value);
+            }
+
+            "twir.icon" => {
+                config.set_twir_icon(value);
             }
 
             _ => return Err(Error::IllegalConfKey(value.to_string())),
