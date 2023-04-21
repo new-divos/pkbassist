@@ -22,7 +22,7 @@ use uuid::Uuid;
 use walkdir::WalkDir;
 
 use crate::{
-    cli::{AddedObject, Arguments, Command, Info, Note, RenamedObject},
+    cli::{AddedObject, Arguments, Command, Info, Note, RemovedObject, RenamedObject},
     config::Config,
     error::Error,
 };
@@ -198,6 +198,11 @@ impl Application {
                     self.rename_banner(old_name.as_str(), new_name.as_str())
                         .await?
                 }
+            },
+
+            // Remove the line from the vault notes.
+            Command::Remove { ref object } => match object {
+                RemovedObject::Line { line } => self.remove_line(line).await?,
             },
 
             // Configure the application.
@@ -1343,6 +1348,56 @@ impl Application {
                         }
                     }
                 }
+                Ok(()) as Result<(), Error>
+            })
+            .filter_map(|r| async move { r.err() })
+            .collect::<Vec<_>>()
+            .await;
+
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(Error::MultipleExecutorsError(errors))
+        }
+    }
+
+    ///
+    /// Remove the specified line from the every file of the vault.
+    ///
+    async fn remove_line<S: AsRef<str>>(&self, line: S) -> Result<(), Error> {
+        let line = line.as_ref().trim();
+        let root = self.check_root()?;
+        let errors = stream::iter(WalkDir::new(root).into_iter())
+            .filter_map(|e| async move {
+                if let Ok(e) = e {
+                    if e.path().exists()
+                        && e.path().is_file()
+                        && e.path().extension().and_then(OsStr::to_str) == Some("md")
+                    {
+                        return Some(e);
+                    }
+                }
+
+                None
+            })
+            .then(|e| async move {
+                // Read content of the daily note.
+                let mut buffer = String::new();
+                {
+                    let mut file = File::open(e.path()).await?;
+                    file.read_to_string(&mut buffer).await?;
+                }
+
+                let mut lines: Vec<_> = buffer.lines().collect();
+                if let Some(idx) = lines.iter().position(|s| (*s).trim().ends_with(line)) {
+                    let _ = lines.remove(idx);
+
+                    let buffer = lines.join("\n");
+                    let mut file = File::create(e.path()).await?;
+                    file.write_all(buffer.as_bytes()).await?;
+                    log::trace!("The note \"{}\" has been updated", e.path().display());
+                }
+
                 Ok(()) as Result<(), Error>
             })
             .filter_map(|r| async move { r.err() })

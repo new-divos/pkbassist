@@ -114,6 +114,14 @@ pub enum Command {
     },
 
     ///
+    /// Remove the object of the notes set.
+    /// 
+    Remove {
+        #[command(subcommand)]
+        object: RemovedObject,
+    },
+
+    ///
     /// Configure the application.
     /// 
     Config {
@@ -288,4 +296,23 @@ pub enum RenamedObject {
         #[arg(required = true)]
         new_name: String,
     },
+}
+
+///
+/// The application rename command object.
+/// 
+#[derive(Debug, Subcommand)]
+#[non_exhaustive]
+pub enum RemovedObject {
+    ///
+    /// Rename the line from the all files of the vault.
+    /// 
+    #[command(name = "line")]
+    Line {
+        ///
+        /// The line to remove.
+        /// 
+        #[arg(required = true)]
+        line: String,
+    }
 }
