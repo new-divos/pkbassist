@@ -305,7 +305,7 @@ pub enum RenamedObject {
 #[non_exhaustive]
 pub enum RemovedObject {
     ///
-    /// Rename the line from the all files of the vault.
+    /// Remove the line from the all files of the vault.
     /// 
     #[command(name = "line")]
     Line {
@@ -314,5 +314,11 @@ pub enum RemovedObject {
         /// 
         #[arg(required = true)]
         line: String,
-    }
+    },
+
+    ///
+    /// Remove the bookmarks from the vault.
+    /// 
+    #[command(name = "bookmarks")]
+    Bookmarks,
 }

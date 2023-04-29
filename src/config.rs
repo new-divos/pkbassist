@@ -42,6 +42,12 @@ pub(crate) struct VaultConfig {
     ///
     #[serde(rename = "Base", skip_serializing_if = "Option::is_none")]
     base_path: Option<PathBuf>,
+
+    ///
+    /// The bookmarks directory of the notes set.
+    ///
+    #[serde(rename = "Bookmarks", skip_serializing_if = "Option::is_none")]
+    bookmarks_path: Option<PathBuf>,
 }
 
 ///
@@ -273,19 +279,20 @@ impl Config {
         self.vault_config.root = Some(PathBuf::from(path));
 
         if update {
-            self.vault_config.files_path = None;
             self.vault_config.files_path = Some(PathBuf::from(
                 self.files_path().ok_or(Error::VaultRootIsAbsent)?,
             ));
 
-            self.vault_config.daily_path = None;
             self.vault_config.daily_path = Some(PathBuf::from(
                 self.daily_path().ok_or(Error::VaultRootIsAbsent)?,
             ));
 
-            self.vault_config.base_path = None;
             self.vault_config.base_path = Some(PathBuf::from(
                 self.base_path().ok_or(Error::VaultRootIsAbsent)?,
+            ));
+
+            self.vault_config.bookmarks_path = Some(PathBuf::from(
+                self.bookmarks_path().ok_or(Error::VaultRootIsAbsent)?,
             ));
         }
 
@@ -359,6 +366,29 @@ impl Config {
     #[inline]
     pub(crate) fn set_base_path(&mut self, path: &Path) {
         self.vault_config.base_path = Some(PathBuf::from(path));
+    }
+
+    ///
+    /// Get the bookmarks directory of the notes set.
+    ///
+    #[inline]
+    pub fn bookmarks_path(&self) -> Option<Cow<Path>> {
+        if let Some(ref bookmarks_buf) = self.vault_config.bookmarks_path {
+            Some(Cow::Borrowed(bookmarks_buf.as_path()))
+        } else {
+            self.vault_config
+                .root
+                .as_ref()
+                .map(|path_buf| Cow::Owned(path_buf.join("Bookmarks")))
+        }
+    }
+
+    ///
+    /// Set the base directory of the notes set.
+    ///
+    #[inline]
+    pub(crate) fn set_bookmarks_path<P: AsRef<Path>>(&mut self, path: P) {
+        self.vault_config.base_path = Some(PathBuf::from(path.as_ref()));
     }
 
     ///

@@ -203,6 +203,7 @@ impl Application {
             // Remove the line from the vault notes.
             Command::Remove { ref object } => match object {
                 RemovedObject::Line { line } => self.remove_line(line).await?,
+                RemovedObject::Bookmarks => self.remove_bookmarks().await?,
             },
 
             // Configure the application.
@@ -1362,7 +1363,7 @@ impl Application {
     }
 
     ///
-    /// Remove the specified line from the every file of the vault.
+    /// Remove the specified line from every file of the vault.
     ///
     async fn remove_line<S: AsRef<str>>(&self, line: S) -> Result<(), Error> {
         let line = line.as_ref().trim();
@@ -1412,6 +1413,27 @@ impl Application {
     }
 
     ///
+    /// Remove all of the bookmarks from the vault.
+    ///
+    async fn remove_bookmarks(&self) -> Result<(), Error> {
+        let bookmarks_path = self
+            .config
+            .bookmarks_path()
+            .ok_or(Error::VaultRootIsAbsent)?;
+
+        let mut dir = fs::read_dir(bookmarks_path).await?;
+        while let Some(child) = dir.next_entry().await? {
+            if child.metadata().await?.is_dir() {
+                fs::remove_dir_all(child.path()).await?;
+            } else {
+                fs::remove_file(child.path()).await?;
+            }
+        }
+
+        Ok(())
+    }
+
+    ///
     /// Configure the application.
     ///
     async fn configure(&self, key: &str, value: &str, update: bool) -> Result<(), Error> {
@@ -1435,6 +1457,11 @@ impl Application {
             "vault.base" => {
                 let path = Path::new(value);
                 config.set_base_path(path);
+            }
+
+            "vault.bookmarks" => {
+                let path = Path::new(value);
+                config.set_bookmarks_path(path);
             }
 
             "apod.path" => {
