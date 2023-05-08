@@ -42,12 +42,6 @@ pub(crate) struct VaultConfig {
     ///
     #[serde(rename = "Base", skip_serializing_if = "Option::is_none")]
     base_path: Option<PathBuf>,
-
-    ///
-    /// The bookmarks directory of the notes set.
-    ///
-    #[serde(rename = "Bookmarks", skip_serializing_if = "Option::is_none")]
-    bookmarks_path: Option<PathBuf>,
 }
 
 ///
@@ -137,6 +131,46 @@ pub(crate) struct TWiRConfig {
 }
 
 ///
+/// The Raindrop.io notes configuration.
+///
+#[derive(Debug, Serialize, Deserialize, Default, Clone)]
+pub struct RaindropConfig {
+    ///
+    /// The Raindrop.io download path.
+    ///
+    #[serde(rename = "Path", skip_serializing_if = "Option::is_none")]
+    path: Option<PathBuf>,
+
+    ///
+    /// The Raindrop.io file name prefix.
+    ///
+    #[serde(rename = "Prefix", skip_serializing_if = "Option::is_none")]
+    prefix: Option<String>,
+}
+
+impl RaindropConfig {
+    ///
+    /// Get the Raindrop.io download path.
+    ///
+    #[inline]
+    pub fn path(&self) -> Result<&Path, Error> {
+        self.path
+            .as_deref()
+            .ok_or(Error::ConfigPropertyIsAbsent("raindrop.path"))
+    }
+
+    ///
+    /// Get the Raindrop.io file name prefix.
+    ///
+    #[inline]
+    pub fn prefix(&self) -> Result<&str, Error> {
+        self.prefix
+            .as_deref()
+            .ok_or(Error::ConfigPropertyIsAbsent("raindrop.prefix"))
+    }
+}
+
+///
 /// The application configuration.
 ///
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -170,6 +204,12 @@ pub struct Config {
     ///
     #[serde(rename = "TWiR")]
     twir_config: TWiRConfig,
+
+    ///
+    /// The Raindrop.io notes configuration.
+    ///
+    #[serde(rename = "Raindrop")]
+    raindrop_config: RaindropConfig,
 }
 
 impl Config {
@@ -201,6 +241,7 @@ impl Config {
             vault_config: Default::default(),
             apod_config: Default::default(),
             twir_config: Default::default(),
+            raindrop_config: Default::default(),
         })
     }
 
@@ -224,6 +265,14 @@ impl Config {
             config.config_file = self.config_file;
             config.log_file = self.log_file;
 
+            if let Some(root_path) = config.vault_config.root.as_deref() {
+                if config.raindrop_config.path.is_none() {
+                    config.raindrop_config.path = Some(root_path.join("Base"));
+                }
+            } else {
+                return Err(Error::VaultRootIsAbsent);
+            }
+
             Ok(config)
         } else {
             self.save().await?;
@@ -232,7 +281,7 @@ impl Config {
     }
 
     ///
-    /// Save a configuration to the file.
+    /// Save the configuration to the file.
     ///
     pub async fn save(&self) -> Result<(), Error> {
         let content = toml::to_string(self)?;
@@ -243,6 +292,36 @@ impl Config {
                 "The configuration was saved to the file  \"{}\"",
                 self.config_file.as_path().display()
             );
+        }
+
+        Ok(())
+    }
+
+    ///
+    /// Get the Raindrop.io configuration.
+    ///
+    #[inline]
+    pub fn raindrop(&self) -> &RaindropConfig {
+        &self.raindrop_config
+    }
+
+    ///
+    /// Set the configuration property value.
+    ///
+    pub fn set<K: AsRef<str>, V: AsRef<str>>(&mut self, key: K, value: V) -> Result<(), Error> {
+        let key = key.as_ref();
+        let value = value.as_ref();
+
+        match key {
+            "raindrop.path" => {
+                self.raindrop_config.path = Some(PathBuf::from(value));
+            }
+
+            "raindrop.prefix" => {
+                self.raindrop_config.prefix = Some(value.to_string());
+            }
+
+            _ => return Err(Error::IllegalConfKey(key.to_string())),
         }
 
         Ok(())
@@ -289,10 +368,6 @@ impl Config {
 
             self.vault_config.base_path = Some(PathBuf::from(
                 self.base_path().ok_or(Error::VaultRootIsAbsent)?,
-            ));
-
-            self.vault_config.bookmarks_path = Some(PathBuf::from(
-                self.bookmarks_path().ok_or(Error::VaultRootIsAbsent)?,
             ));
         }
 
@@ -366,29 +441,6 @@ impl Config {
     #[inline]
     pub(crate) fn set_base_path(&mut self, path: &Path) {
         self.vault_config.base_path = Some(PathBuf::from(path));
-    }
-
-    ///
-    /// Get the bookmarks directory of the notes set.
-    ///
-    #[inline]
-    pub fn bookmarks_path(&self) -> Option<Cow<Path>> {
-        if let Some(ref bookmarks_buf) = self.vault_config.bookmarks_path {
-            Some(Cow::Borrowed(bookmarks_buf.as_path()))
-        } else {
-            self.vault_config
-                .root
-                .as_ref()
-                .map(|path_buf| Cow::Owned(path_buf.join("Bookmarks")))
-        }
-    }
-
-    ///
-    /// Set the base directory of the notes set.
-    ///
-    #[inline]
-    pub(crate) fn set_bookmarks_path<P: AsRef<Path>>(&mut self, path: P) {
-        self.vault_config.base_path = Some(PathBuf::from(path.as_ref()));
     }
 
     ///

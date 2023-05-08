@@ -203,7 +203,11 @@ impl Application {
             // Remove the line from the vault notes.
             Command::Remove { ref object } => match object {
                 RemovedObject::Line { line } => self.remove_line(line).await?,
-                RemovedObject::Bookmarks => self.remove_bookmarks().await?,
+                RemovedObject::Notes { raindrop } => {
+                    if *raindrop {
+                        self.remove_raindrop_notes().await?;
+                    }
+                }
             },
 
             // Configure the application.
@@ -1413,24 +1417,43 @@ impl Application {
     }
 
     ///
-    /// Remove all of the bookmarks from the vault.
+    /// Remove the raindrop.io notes.
     ///
-    async fn remove_bookmarks(&self) -> Result<(), Error> {
-        let bookmarks_path = self
-            .config
-            .bookmarks_path()
-            .ok_or(Error::VaultRootIsAbsent)?;
+    async fn remove_raindrop_notes(&self) -> Result<(), Error> {
+        let raindrop_path = self.config.raindrop().path()?;
+        let prefix = self.config.raindrop().prefix()?;
 
-        let mut dir = fs::read_dir(bookmarks_path).await?;
-        while let Some(child) = dir.next_entry().await? {
-            if child.metadata().await?.is_dir() {
-                fs::remove_dir_all(child.path()).await?;
-            } else {
-                fs::remove_file(child.path()).await?;
-            }
+        let errors = stream::iter(WalkDir::new(raindrop_path).into_iter())
+            .filter_map(|e| async move {
+                if let Ok(e) = e {
+                    if e.path().exists()
+                        && e.path().is_file()
+                        && e.path().extension().and_then(OsStr::to_str) == Some("md")
+                    {
+                        return Some(e);
+                    }
+                }
+
+                None
+            })
+            .then(|e| async move {
+                if let Some(file_name) = e.file_name().to_str() {
+                    if file_name.starts_with(prefix) {
+                        fs::remove_file(e.path()).await?;
+                    }
+                }
+
+                Ok(()) as Result<(), Error>
+            })
+            .filter_map(|r| async move { r.err() })
+            .collect::<Vec<_>>()
+            .await;
+
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(Error::MultipleExecutorsError(errors))
         }
-
-        Ok(())
     }
 
     ///
@@ -1457,11 +1480,6 @@ impl Application {
             "vault.base" => {
                 let path = Path::new(value);
                 config.set_base_path(path);
-            }
-
-            "vault.bookmarks" => {
-                let path = Path::new(value);
-                config.set_bookmarks_path(path);
             }
 
             "apod.path" => {
@@ -1510,7 +1528,7 @@ impl Application {
                 config.set_twir_icon(value);
             }
 
-            _ => return Err(Error::IllegalConfKey(value.to_string())),
+            _ => return config.set(key, value),
         }
 
         config.save().await?;

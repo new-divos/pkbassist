@@ -317,8 +317,15 @@ pub enum RemovedObject {
     },
 
     ///
-    /// Remove the bookmarks from the vault.
+    /// Remove the special notes from the vault.
     /// 
-    #[command(name = "bookmarks")]
-    Bookmarks,
+    #[command(name = "notes")]
+    Notes {
+        ///
+        /// Remove the raindrop.io notes.
+        ///
+        #[arg(long = "raindrop", action = ArgAction::SetTrue)]
+        raindrop: bool,
+
+    },
 }

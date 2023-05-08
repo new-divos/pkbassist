@@ -13,6 +13,9 @@ pub enum Error {
     #[error("cannot find the configuration file")]
     CannotFindConfig,
 
+    #[error("configuration property \"{0}\" value is absent")]
+    ConfigPropertyIsAbsent(&'static str),
+
     #[error("illegal issue number {0}")]
     IllegalIssue(String),
 
