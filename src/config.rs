@@ -171,6 +171,46 @@ impl RaindropConfig {
 }
 
 ///
+/// The Omnivore notes configuration.
+///
+#[derive(Debug, Serialize, Deserialize, Default, Clone)]
+pub struct OmnivoreConfig {
+    ///
+    /// The Omnivore download path.
+    ///
+    #[serde(rename = "Path", skip_serializing_if = "Option::is_none")]
+    path: Option<PathBuf>,
+
+    ///
+    /// The Omnivore file name prefix.
+    ///
+    #[serde(rename = "Prefix", skip_serializing_if = "Option::is_none")]
+    prefix: Option<String>,
+}
+
+impl OmnivoreConfig {
+    ///
+    /// Get the Omnivore download path.
+    ///
+    #[inline]
+    pub fn path(&self) -> Result<&Path, Error> {
+        self.path
+            .as_deref()
+            .ok_or(Error::ConfigPropertyIsAbsent("omnivore.path"))
+    }
+
+    ///
+    /// Get the Omnivore file name prefix.
+    ///
+    #[inline]
+    pub fn prefix(&self) -> Result<&str, Error> {
+        self.prefix
+            .as_deref()
+            .ok_or(Error::ConfigPropertyIsAbsent("omnivore.prefix"))
+    }
+}
+
+///
 /// The application configuration.
 ///
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -210,6 +250,12 @@ pub struct Config {
     ///
     #[serde(rename = "Raindrop")]
     raindrop_config: RaindropConfig,
+
+    ///
+    /// The Onmivore notes configuration.
+    ///
+    #[serde(rename = "Omnivore")]
+    omnivore_config: OmnivoreConfig,
 }
 
 impl Config {
@@ -242,6 +288,7 @@ impl Config {
             apod_config: Default::default(),
             twir_config: Default::default(),
             raindrop_config: Default::default(),
+            omnivore_config: Default::default(),
         })
     }
 
@@ -306,6 +353,14 @@ impl Config {
     }
 
     ///
+    /// Get the Omnivore configuration.
+    ///
+    #[inline]
+    pub fn omnivore(&self) -> &OmnivoreConfig {
+        &self.omnivore_config
+    }
+
+    ///
     /// Set the configuration property value.
     ///
     pub fn set<K: AsRef<str>, V: AsRef<str>>(&mut self, key: K, value: V) -> Result<(), Error> {
@@ -319,6 +374,14 @@ impl Config {
 
             "raindrop.prefix" => {
                 self.raindrop_config.prefix = Some(value.to_string());
+            }
+
+            "omnivore.path" => {
+                self.omnivore_config.path = Some(PathBuf::from(value));
+            }
+
+            "omnivore.prefix" => {
+                self.omnivore_config.prefix = Some(value.to_string());
             }
 
             _ => return Err(Error::IllegalConfKey(key.to_string())),

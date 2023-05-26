@@ -203,9 +203,13 @@ impl Application {
             // Remove the line from the vault notes.
             Command::Remove { ref object } => match object {
                 RemovedObject::Line { line } => self.remove_line(line).await?,
-                RemovedObject::Notes { raindrop } => {
+                RemovedObject::Notes { raindrop, omnivore } => {
                     if *raindrop {
                         self.remove_raindrop_notes().await?;
+                    }
+
+                    if *omnivore {
+                        self.remove_omnivore_notes().await?;
                     }
                 }
             },
@@ -1417,13 +1421,17 @@ impl Application {
     }
 
     ///
-    /// Remove the raindrop.io notes.
+    /// Remove notes with prefix.
     ///
-    async fn remove_raindrop_notes(&self) -> Result<(), Error> {
-        let raindrop_path = self.config.raindrop().path()?;
-        let prefix = self.config.raindrop().prefix()?;
+    async fn remove_notes<P: AsRef<Path>, S: AsRef<str>>(
+        &self,
+        path: P,
+        prefix: S,
+    ) -> Result<(), Error> {
+        let path = path.as_ref();
+        let prefix = prefix.as_ref();
 
-        let errors = stream::iter(WalkDir::new(raindrop_path).into_iter())
+        let errors = stream::iter(WalkDir::new(path).into_iter())
             .filter_map(|e| async move {
                 if let Ok(e) = e {
                     if e.path().exists()
@@ -1454,6 +1462,26 @@ impl Application {
         } else {
             Err(Error::MultipleExecutorsError(errors))
         }
+    }
+
+    ///
+    /// Remove the Raindrop.io notes.
+    ///
+    async fn remove_raindrop_notes(&self) -> Result<(), Error> {
+        let path = self.config.raindrop().path()?;
+        let prefix = self.config.raindrop().prefix()?;
+
+        self.remove_notes(path, prefix).await
+    }
+
+    ///
+    /// Remove the Omnivore notes.
+    ///
+    async fn remove_omnivore_notes(&self) -> Result<(), Error> {
+        let path = self.config.omnivore().path()?;
+        let prefix = self.config.omnivore().prefix()?;
+
+        self.remove_notes(path, prefix).await
     }
 
     ///

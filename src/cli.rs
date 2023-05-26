@@ -322,10 +322,15 @@ pub enum RemovedObject {
     #[command(name = "notes")]
     Notes {
         ///
-        /// Remove the raindrop.io notes.
+        /// Remove the Raindrop.io notes.
         ///
         #[arg(long = "raindrop", action = ArgAction::SetTrue)]
         raindrop: bool,
 
+        ///
+        /// Remove the Omnivore notes.
+        /// 
+        #[arg(long = "omnivore", action = ArgAction::SetTrue)]
+        omnivore: bool,
     },
 }
