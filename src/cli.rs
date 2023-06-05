@@ -136,12 +136,6 @@ pub enum Command {
         /// 
         #[arg(name = "value", required = true)]
         value: String,
-
-        ///
-        /// Change all dependencies.
-        ///
-        #[arg(long, action = ArgAction::SetTrue)]
-        update: bool,
     },
 }
 

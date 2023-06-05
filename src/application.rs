@@ -215,11 +215,9 @@ impl Application {
             },
 
             // Configure the application.
-            Command::Config {
-                ref key,
-                ref value,
-                update,
-            } => self.configure(key.as_str(), value.as_str(), update).await?,
+            Command::Config { ref key, ref value } => {
+                self.configure(key.as_str(), value.as_str()).await?
+            }
         }
 
         Ok(())
@@ -229,7 +227,7 @@ impl Application {
     /// Repair the wiki references.
     ///
     async fn repair_wiki_refs(&self) -> Result<(), Error> {
-        let root = self.check_root()?;
+        let root = self.config.vault().root_path()?;
         let re = Arc::new(
             Regex::new(
                 r"\[\[\s*(?P<file>[A-Za-z\d\-\.]+(?:\s+[\w\d\-_\.\(\)]+)*)\s*\|\s+(?P<descr>.[^\[\]]+)\s*?\]\]",
@@ -282,8 +280,8 @@ impl Application {
     /// Remove the unused files.
     ///
     async fn remove_unused_files(&self) -> Result<(), Error> {
-        let root = self.check_root()?;
-        let files_path = self.config.files_path().ok_or(Error::VaultRootIsAbsent)?;
+        let root = self.config.vault().root_path()?;
+        let files_path = self.config.vault().files_path()?;
 
         let files = Arc::new(
             stream::iter(WalkDir::new(files_path).into_iter())
@@ -385,8 +383,8 @@ impl Application {
     /// Rename the attached files.
     ///
     async fn rename_attached_files(&self) -> Result<(), Error> {
-        let root = self.check_root()?;
-        let files_path = self.config.files_path().ok_or(Error::VaultRootIsAbsent)?;
+        let root = self.config.vault().root_path()?;
+        let files_path = self.config.vault().files_path()?;
 
         let re = Arc::new(
             Regex::new(
@@ -487,7 +485,6 @@ impl Application {
     /// Repair the This Week in Rust issues.
     ///
     async fn repair_twir_issues(&self) -> Result<(), Error> {
-        let _ = self.check_root()?;
         let twir_path = self.config.twir_path().ok_or(Error::VaultRootIsAbsent)?;
 
         let re = Arc::new(Regex::new(r"^TWiR\s+(?P<number>\d+)$").unwrap());
@@ -568,8 +565,8 @@ impl Application {
     /// Repair the Astronomy Picture of the Day issues.
     ///
     async fn repair_apod_issues(&self) -> Result<(), Error> {
-        let _ = self.check_root()?;
-        let apod_path = self.config.apod_path().ok_or(Error::VaultRootIsAbsent)?;
+        let apod_path = self.config.apod().path()?;
+        let daily_path = self.config.vault().daily_path()?;
 
         let re = Arc::new(
             Regex::new(r"^APoD\s+(?P<year>\d{1,4})-(?P<month>\d{1,2})-(?P<day>\d{1,2})$").unwrap(),
@@ -589,21 +586,16 @@ impl Application {
             })
             .zip(stream::iter(repeat_with(|| re.clone())))
             .filter_map(|(e, re)| async move {
-                if let (Some(apod_path), Some(daily_path)) =
-                    (self.config.apod_path(), self.config.daily_path())
-                {
-                    if let Some(stem) = e.path().file_stem().and_then(OsStr::to_str) {
-                        if let Some(cap) = re.captures_iter(stem).next() {
-                            let year = &cap["year"];
-                            let month = &cap["month"];
-                            let day = &cap["day"];
+                if let Some(stem) = e.path().file_stem().and_then(OsStr::to_str) {
+                    if let Some(cap) = re.captures_iter(stem).next() {
+                        let year = &cap["year"];
+                        let month = &cap["month"];
+                        let day = &cap["day"];
 
-                            let new_path =
-                                apod_path.join(format!("ISS.APoD.{year}.{month}.{day}.md"));
-                            let daily_path = daily_path.join(format!("{year}-{month}-{day}.md"));
+                        let new_path = apod_path.join(format!("ISS.APoD.{year}.{month}.{day}.md"));
+                        let daily_path = daily_path.join(format!("{year}-{month}-{day}.md"));
 
-                            return Some((e, new_path, daily_path));
-                        }
+                        return Some((e, new_path, daily_path));
                     }
                 }
 
@@ -667,7 +659,7 @@ impl Application {
     /// Remove created tag from the notes.
     ///
     async fn remove_created(&self) -> Result<(), Error> {
-        let root = self.check_root()?;
+        let root = self.config.vault().root_path()?;
         let errors = stream::iter(WalkDir::new(root).into_iter())
             .filter_map(|e| async move {
                 if let Ok(e) = e {
@@ -718,7 +710,7 @@ impl Application {
     /// Repair the banners info.
     ///
     async fn repair_banners(&self) -> Result<(), Error> {
-        let root = self.check_root()?;
+        let root = self.config.vault().root_path()?;
         let errors = stream::iter(WalkDir::new(root).into_iter())
             .filter_map(|e| async move {
                 if let Ok(e) = e {
@@ -771,16 +763,14 @@ impl Application {
         update_daily: bool,
         subtags: &Option<Vec<String>>,
     ) -> Result<(), Error> {
-        let _ = self.check_root()?;
-
-        let nasa_key = self.config.apod_key().ok_or(Error::IllegalNASAKey)?;
+        let nasa_key = self.config.apod().api_key()?;
         let url = format!("https://api.nasa.gov/planetary/apod?api_key={nasa_key}");
 
         let response = reqwest::get(url).await?.json::<apod::Info>().await?;
 
-        let files_path = self.config.files_path().ok_or(Error::VaultRootIsAbsent)?;
+        let files_path = self.config.vault().files_path()?;
         tokio::fs::create_dir_all(&files_path).await?;
-        let apod_path = self.config.apod_path().ok_or(Error::VaultRootIsAbsent)?;
+        let apod_path = self.config.apod().path()?;
         tokio::fs::create_dir_all(&apod_path).await?;
 
         let media_ref: String;
@@ -841,11 +831,7 @@ impl Application {
 
         let date = response.date().format("%Y-%m-%d").to_string();
         let file_date = response.date().format("%Y.%m.%d").to_string();
-        let daily_path = self
-            .config
-            .daily_path()
-            .ok_or(Error::VaultRootIsAbsent)?
-            .join(format!("{date}.md"));
+        let daily_path = self.config.vault().daily_path()?.join(format!("{date}.md"));
 
         let supertag = "astronomy".to_string();
         let mut tags: HashSet<String> = HashSet::new();
@@ -875,10 +861,10 @@ impl Application {
         ];
 
         content.extend(tags.into_iter().map(|e| format!("- {e}")));
-        if let Some(banner) = self.config.apod_banner() {
+        if let Some(banner) = self.config.apod().banner() {
             content.push(format!("banner: {banner}"));
         }
-        if let Some(icon) = self.config.apod_icon() {
+        if let Some(icon) = self.config.apod().icon() {
             content.push(format!("banner_icon: {icon}"));
         }
 
@@ -924,13 +910,13 @@ impl Application {
                 file.read_to_string(&mut buffer).await?;
             }
 
-            let prefix = self.config.apod_prefix();
+            let prefix = self.config.apod().prefix();
             let link = if let Some(prefix) = prefix {
                 format!("{prefix} [[ISS.APoD.{file_date}|Astronomy Picture of the Day]]")
             } else {
                 format!("[[ISS.APoD.{file_date}|Astronomy Picture of the Day]]")
             };
-            let buffer = Self::modify_daily(buffer, link, self.config.apod_marker());
+            let buffer = Self::modify_daily(buffer, link, self.config.apod().marker());
 
             // Write updated content of the daily note.
             {
@@ -996,11 +982,7 @@ impl Application {
             content.push(format!("| [[ISS.TWiR.{next}|{next}]] >>\n"));
         }
 
-        let daily_path = self
-            .config
-            .daily_path()
-            .ok_or(Error::VaultRootIsAbsent)?
-            .join(format!("{date}.md"));
+        let daily_path = self.config.vault().daily_path()?.join(format!("{date}.md"));
 
         if update_daily && daily_path.exists() && daily_path.is_file() {
             content.push(format!("# [[{date}]]: This Week in Rust {number}\n"));
@@ -1057,8 +1039,6 @@ impl Application {
     /// Grab This Week in Rust issues.
     ///
     async fn grab_twir(&self, issues: &twir::Issues, update_daily: bool) -> Result<(), Error> {
-        let _ = self.check_root()?;
-
         let notes = Arc::new(twir::Notes::select().await?);
 
         let twir_path = Arc::new(PathBuf::from(
@@ -1133,7 +1113,7 @@ impl Application {
         note_type: &str,
         note_tags: Option<Vec<&str>>,
     ) -> Result<(), Error> {
-        let root = self.check_root()?;
+        let root = self.config.vault().root_path()?;
         let note_tags = Arc::new(note_tags);
         let errors = stream::iter(WalkDir::new(root).into_iter())
             .filter_map(|e| async move {
@@ -1192,16 +1172,14 @@ impl Application {
     /// Add the calendar to the monthly note.
     ///
     async fn add_calendar(&self, year: i32, month: u32) -> Result<(), Error> {
-        let _ = self.check_root()?;
-
         if year <= 0 || !(1..=12).contains(&month) {
             return Err(Error::IllegalDate);
         }
 
         let monthly_path = self
             .config
-            .daily_path()
-            .ok_or(Error::VaultRootIsAbsent)?
+            .vault()
+            .daily_path()?
             .join(format!("{year}-{month:02}.md"));
         if !monthly_path.is_file() {
             return Err(Error::IllegalPath(format!("{}", monthly_path.display())));
@@ -1265,7 +1243,7 @@ impl Application {
     /// Add a creation date to the note.
     ///
     async fn add_created(&self, note_type: &str) -> Result<(), Error> {
-        let root = self.check_root()?;
+        let root = self.config.vault().root_path()?;
         let errors = stream::iter(WalkDir::new(root).into_iter())
             .filter_map(|e| async move {
                 if let Ok(e) = e {
@@ -1321,7 +1299,7 @@ impl Application {
     /// Rename the banner file name.
     ///
     async fn rename_banner(&self, old_name: &str, new_name: &str) -> Result<(), Error> {
-        let root = self.check_root()?;
+        let root = self.config.vault().root_path()?;
         let errors = stream::iter(WalkDir::new(root).into_iter())
             .filter_map(|e| async move {
                 if let Ok(e) = e {
@@ -1375,7 +1353,7 @@ impl Application {
     ///
     async fn remove_line<S: AsRef<str>>(&self, line: S) -> Result<(), Error> {
         let line = line.as_ref().trim();
-        let root = self.check_root()?;
+        let root = self.config.vault().root_path()?;
         let errors = stream::iter(WalkDir::new(root).into_iter())
             .filter_map(|e| async move {
                 if let Ok(e) = e {
@@ -1487,96 +1465,11 @@ impl Application {
     ///
     /// Configure the application.
     ///
-    async fn configure(&self, key: &str, value: &str, update: bool) -> Result<(), Error> {
+    async fn configure(&self, key: &str, value: &str) -> Result<(), Error> {
         let mut config = self.config.clone();
-        match key.to_lowercase().as_str() {
-            "vault.root" => {
-                let path = Path::new(value);
-                config.set_root(path, update)?;
-            }
-
-            "vault.files" => {
-                let path = Path::new(value);
-                config.set_files_path(path);
-            }
-
-            "vault.daily" => {
-                let path = Path::new(value);
-                config.set_daily_path(path);
-            }
-
-            "vault.base" => {
-                let path = Path::new(value);
-                config.set_base_path(path);
-            }
-
-            "apod.path" => {
-                let path = Path::new(value);
-                config.set_apod_path(path);
-            }
-
-            "apod.key" => {
-                config.set_apod_key(value);
-            }
-
-            "apod.banner" => {
-                config.set_apod_banner(value);
-            }
-
-            "apod.prefix" => {
-                config.set_apod_prefix(value);
-            }
-
-            "apod.marker" => {
-                config.set_apod_marker(value);
-            }
-
-            "apod.icon" => {
-                config.set_apod_icon(value);
-            }
-
-            "twir.path" => {
-                let path = Path::new(value);
-                config.set_twir_path(path);
-            }
-
-            "twir.banner" => {
-                config.set_twir_banner(value);
-            }
-
-            "twir.prefix" => {
-                config.set_twir_prefix(value);
-            }
-
-            "twir.marker" => {
-                config.set_twir_marker(value);
-            }
-
-            "twir.icon" => {
-                config.set_twir_icon(value);
-            }
-
-            _ => return config.set(key, value),
-        }
-
+        config.set(key, value)?;
         config.save().await?;
         Ok(())
-    }
-
-    ///
-    /// Check the root path of the vault.
-    ///
-    #[inline]
-    fn check_root(&self) -> Result<&Path, Error> {
-        if let Some(path) = self.config.root() {
-            if path.exists() && path.is_dir() {
-                Ok(path)
-            } else {
-                Err(Error::IllegalVaultRoot(PathBuf::from(path)))
-            }
-        } else {
-            Err(Error::VaultRootIsAbsent)
-        }
     }
 
     ///

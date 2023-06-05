@@ -18,7 +18,7 @@ use crate::error::Error;
 /// The notes application configuration.
 ///
 #[derive(Debug, Serialize, Deserialize, Default, Clone)]
-pub(crate) struct VaultConfig {
+pub struct VaultConfig {
     ///
     /// The root directory of the notes set.
     ///
@@ -42,13 +42,80 @@ pub(crate) struct VaultConfig {
     ///
     #[serde(rename = "Base", skip_serializing_if = "Option::is_none")]
     base_path: Option<PathBuf>,
+
+    ///
+    /// The templates directory of the notes set.
+    ///
+    #[serde(rename = "Templates", skip_serializing_if = "Option::is_none")]
+    templates_path: Option<PathBuf>,
+}
+
+impl VaultConfig {
+    // The property name for the root path.
+    const ROOT_PROPERTY: &'static str = "vault.root";
+    // The property name for the files path.
+    const FILES_PROPERTY: &'static str = "vault.files";
+    // The property name for the daily path.
+    const DAILY_PROPERTY: &'static str = "vault.daily";
+    // The property name for the base path.
+    const BASE_PROPERTY: &'static str = "vault.base";
+    // The property name for the templates path.
+    const TEMPLATES_PROPERTY: &'static str = "vault.templates";
+
+    ///
+    /// Get the root path of the notes set.
+    ///
+    #[inline]
+    pub fn root_path(&self) -> Result<&Path, Error> {
+        self.root
+            .as_deref()
+            .ok_or(Error::ConfigPropertyIsAbsent(Self::ROOT_PROPERTY))
+    }
+
+    ///
+    /// Get the files path of the notes set.
+    ///
+    #[inline]
+    pub fn files_path(&self) -> Result<&Path, Error> {
+        self.files_path
+            .as_deref()
+            .ok_or(Error::ConfigPropertyIsAbsent(Self::FILES_PROPERTY))
+    }
+
+    ///
+    /// Get the daily path of the notes set.
+    ///
+    pub fn daily_path(&self) -> Result<&Path, Error> {
+        self.daily_path
+            .as_deref()
+            .ok_or(Error::ConfigPropertyIsAbsent(Self::DAILY_PROPERTY))
+    }
+
+    ///
+    /// Get the base path of the notes set.
+    ///
+    pub fn base_path(&self) -> Result<&Path, Error> {
+        self.base_path
+            .as_deref()
+            .ok_or(Error::ConfigPropertyIsAbsent(Self::BASE_PROPERTY))
+    }
+
+    ///
+    /// Get the templates path of the notes set.
+    ///
+    #[inline]
+    pub fn templates_path(&self) -> Result<&Path, Error> {
+        self.templates_path
+            .as_deref()
+            .ok_or(Error::ConfigPropertyIsAbsent(Self::TEMPLATES_PROPERTY))
+    }
 }
 
 ///
 /// The NASA Astronomy Picture of the Day notes configuration.
 ///
 #[derive(Debug, Serialize, Deserialize, Default, Clone)]
-pub(crate) struct APoDConfig {
+pub struct APoDConfig {
     ///
     /// The NASA Astronomy Picture of the Day download path.
     ///
@@ -91,6 +158,83 @@ pub(crate) struct APoDConfig {
     ///
     #[serde(rename = "Icon", skip_serializing_if = "Option::is_none")]
     icon: Option<String>,
+}
+
+impl APoDConfig {
+    // The property name for the NASA Astronomy Picture of the Day download path.
+    const PATH_PROPERTY: &'static str = "apod.path";
+    // The property name for the NASA Astronomy Picture of the Day API Key.
+    const APIKEY_PROPERTY: &'static str = "apod.key";
+    // The property name for the NASA Astronomy Picture of the Day API Version.
+    const APIVERSION_PROPERTY: &'static str = "apod.version";
+    // The property name for the NASA Astronomy Picture of the Day note banner.
+    const BANNER_PROPERTY: &'static str = "apod.banner";
+    // The property name for the NASA Astronomy Picture of the Day daily link prefix.
+    const PREFIX_PROPERTY: &'static str = "apod.prefix";
+    // The property name for the NASA Astronomy Picture of the Day daily link marker.
+    const MARKER_PROPERTY: &'static str = "apod.marker";
+    // The property name for the NASA Astronomy Picture of the Day icon.
+    const ICON_PROPERTY: &'static str = "apod.icon";
+
+    ///
+    /// Get the NASA Astronomy Picture of the Day download path.
+    ///
+    #[inline]
+    pub fn path(&self) -> Result<&Path, Error> {
+        self.path
+            .as_deref()
+            .ok_or(Error::ConfigPropertyIsAbsent(Self::PATH_PROPERTY))
+    }
+
+    ///
+    /// Get the NASA Astronomy Picture of the Day API Key.
+    ///
+    #[inline]
+    pub fn api_key(&self) -> Result<&str, Error> {
+        self.key
+            .as_deref()
+            .ok_or(Error::ConfigPropertyIsAbsent(Self::APIKEY_PROPERTY))
+    }
+
+    ///
+    /// Get the NASA Astronomy Picture of the Day API Version.
+    ///
+    #[inline]
+    pub fn api_version(&self) -> apod::Version {
+        self.version
+    }
+
+    ///
+    /// Get the NASA Astronomy Picture of the Day note banner.
+    ///
+    #[inline]
+    pub fn banner(&self) -> Option<&str> {
+        self.banner.as_deref()
+    }
+
+    ///
+    /// Get the NASA Astronomy Picture of the Day daily link prefix.
+    ///
+    #[inline]
+    pub fn prefix(&self) -> Option<&str> {
+        self.prefix.as_deref()
+    }
+
+    ///
+    /// Get the NASA Astronomy Picture of the Day daily link marker.
+    ///
+    #[inline]
+    pub fn marker(&self) -> Option<&str> {
+        self.marker.as_deref()
+    }
+
+    ///
+    /// Get the NASA Astronomy Picture of the Day icon.
+    ///
+    #[inline]
+    pub fn icon(&self) -> Option<&str> {
+        self.icon.as_deref()
+    }
 }
 
 ///
@@ -149,6 +293,11 @@ pub struct RaindropConfig {
 }
 
 impl RaindropConfig {
+    // The property name for the Raindrop.io download path.
+    const PATH_PROPERTY: &'static str = "raindrop.path";
+    // The property name for the Raindrop.io file name prefix.
+    const PREFIX_PROPERTY: &'static str = "raindrop.prefix";
+
     ///
     /// Get the Raindrop.io download path.
     ///
@@ -156,7 +305,7 @@ impl RaindropConfig {
     pub fn path(&self) -> Result<&Path, Error> {
         self.path
             .as_deref()
-            .ok_or(Error::ConfigPropertyIsAbsent("raindrop.path"))
+            .ok_or(Error::ConfigPropertyIsAbsent(Self::PATH_PROPERTY))
     }
 
     ///
@@ -166,7 +315,7 @@ impl RaindropConfig {
     pub fn prefix(&self) -> Result<&str, Error> {
         self.prefix
             .as_deref()
-            .ok_or(Error::ConfigPropertyIsAbsent("raindrop.prefix"))
+            .ok_or(Error::ConfigPropertyIsAbsent(Self::PREFIX_PROPERTY))
     }
 }
 
@@ -189,6 +338,11 @@ pub struct OmnivoreConfig {
 }
 
 impl OmnivoreConfig {
+    // The property name for the Omnivore download path.
+    const PATH_PROPERTY: &'static str = "omnivore.path";
+    // The property name for the Omnivore file name prefix.
+    const PREFIX_PROPERTY: &'static str = "omnivore.prefix";
+
     ///
     /// Get the Omnivore download path.
     ///
@@ -196,7 +350,7 @@ impl OmnivoreConfig {
     pub fn path(&self) -> Result<&Path, Error> {
         self.path
             .as_deref()
-            .ok_or(Error::ConfigPropertyIsAbsent("omnivore.path"))
+            .ok_or(Error::ConfigPropertyIsAbsent(Self::PATH_PROPERTY))
     }
 
     ///
@@ -206,7 +360,7 @@ impl OmnivoreConfig {
     pub fn prefix(&self) -> Result<&str, Error> {
         self.prefix
             .as_deref()
-            .ok_or(Error::ConfigPropertyIsAbsent("omnivore.prefix"))
+            .ok_or(Error::ConfigPropertyIsAbsent(Self::PREFIX_PROPERTY))
     }
 }
 
@@ -345,6 +499,22 @@ impl Config {
     }
 
     ///
+    /// Get the vault configuration.
+    ///
+    #[inline]
+    pub fn vault(&self) -> &VaultConfig {
+        &self.vault_config
+    }
+
+    ///
+    /// Get the NASA Astronomy Picture of the Day configuration.
+    ///
+    #[inline]
+    pub fn apod(&self) -> &APoDConfig {
+        &self.apod_config
+    }
+
+    ///
     /// Get the Raindrop.io configuration.
     ///
     #[inline]
@@ -368,19 +538,68 @@ impl Config {
         let value = value.as_ref();
 
         match key {
-            "raindrop.path" => {
+            VaultConfig::ROOT_PROPERTY => {
+                self.vault_config.root = Some(PathBuf::from(value));
+            }
+
+            VaultConfig::FILES_PROPERTY => {
+                self.vault_config.files_path = Some(PathBuf::from(value));
+            }
+
+            VaultConfig::DAILY_PROPERTY => {
+                self.vault_config.daily_path = Some(PathBuf::from(value));
+            }
+
+            VaultConfig::BASE_PROPERTY => {
+                self.vault_config.base_path = Some(PathBuf::from(value));
+            }
+
+            VaultConfig::TEMPLATES_PROPERTY => {
+                self.vault_config.templates_path = Some(PathBuf::from(value));
+            }
+
+            APoDConfig::PATH_PROPERTY => {
+                self.apod_config.path = Some(PathBuf::from(value));
+            }
+
+            APoDConfig::APIKEY_PROPERTY => {
+                self.apod_config.key = Some(value.to_string());
+            }
+
+            APoDConfig::APIVERSION_PROPERTY => match value.to_lowercase().as_str() {
+                "v1" => self.apod_config.version = apod::Version::V1_0,
+                _ => return Err(Error::IllegalConfValue(value.to_string())),
+            },
+
+            APoDConfig::BANNER_PROPERTY => {
+                self.apod_config.banner = Some(value.to_string());
+            }
+
+            APoDConfig::PREFIX_PROPERTY => {
+                self.apod_config.prefix = Some(value.to_string());
+            }
+
+            APoDConfig::MARKER_PROPERTY => {
+                self.apod_config.marker = Some(value.to_string());
+            }
+
+            APoDConfig::ICON_PROPERTY => {
+                self.apod_config.icon = Some(value.to_string());
+            }
+
+            RaindropConfig::PATH_PROPERTY => {
                 self.raindrop_config.path = Some(PathBuf::from(value));
             }
 
-            "raindrop.prefix" => {
+            RaindropConfig::PREFIX_PROPERTY => {
                 self.raindrop_config.prefix = Some(value.to_string());
             }
 
-            "omnivore.path" => {
+            OmnivoreConfig::PATH_PROPERTY => {
                 self.omnivore_config.path = Some(PathBuf::from(value));
             }
 
-            "omnivore.prefix" => {
+            OmnivoreConfig::PREFIX_PROPERTY => {
                 self.omnivore_config.prefix = Some(value.to_string());
             }
 
@@ -407,126 +626,6 @@ impl Config {
     }
 
     ///
-    /// Get the root directory of the vault.
-    ///
-    #[inline]
-    pub fn root(&self) -> Option<&Path> {
-        self.vault_config.root.as_deref()
-    }
-
-    ///
-    /// Set the root directory of the vault.
-    ///
-    pub(crate) fn set_root(&mut self, path: &Path, update: bool) -> Result<(), Error> {
-        self.vault_config.root = Some(PathBuf::from(path));
-
-        if update {
-            self.vault_config.files_path = Some(PathBuf::from(
-                self.files_path().ok_or(Error::VaultRootIsAbsent)?,
-            ));
-
-            self.vault_config.daily_path = Some(PathBuf::from(
-                self.daily_path().ok_or(Error::VaultRootIsAbsent)?,
-            ));
-
-            self.vault_config.base_path = Some(PathBuf::from(
-                self.base_path().ok_or(Error::VaultRootIsAbsent)?,
-            ));
-        }
-
-        Ok(())
-    }
-
-    ///
-    /// Get the files directory of the vault.
-    ///
-    #[inline]
-    pub fn files_path(&self) -> Option<Cow<Path>> {
-        if let Some(ref path_buf) = self.vault_config.files_path {
-            Some(Cow::Borrowed(path_buf.as_path()))
-        } else {
-            self.vault_config
-                .root
-                .as_ref()
-                .map(|path_buf| Cow::Owned(path_buf.join("Files")))
-        }
-    }
-
-    ///
-    /// Set the files directory of the vault.
-    ///
-    #[inline]
-    pub(crate) fn set_files_path(&mut self, path: &Path) {
-        self.vault_config.files_path = Some(PathBuf::from(path));
-    }
-
-    ///
-    /// Get the files directory of the notes set.
-    ///
-    #[inline]
-    pub fn daily_path(&self) -> Option<Cow<Path>> {
-        if let Some(ref path_buf) = self.vault_config.daily_path {
-            Some(Cow::Borrowed(path_buf.as_path()))
-        } else {
-            self.vault_config
-                .root
-                .as_ref()
-                .map(|path_buf| Cow::Owned(path_buf.join("Daily")))
-        }
-    }
-
-    ///
-    /// Set the files directory of the notes set.
-    ///
-    #[inline]
-    pub(crate) fn set_daily_path(&mut self, path: &Path) {
-        self.vault_config.daily_path = Some(PathBuf::from(path));
-    }
-
-    ///
-    /// Get the base directory of the notes set.
-    ///
-    #[inline]
-    pub fn base_path(&self) -> Option<Cow<Path>> {
-        if let Some(ref path_buf) = self.vault_config.base_path {
-            Some(Cow::Borrowed(path_buf.as_path()))
-        } else {
-            self.vault_config
-                .root
-                .as_ref()
-                .map(|path_buf| Cow::Owned(path_buf.join("Base")))
-        }
-    }
-
-    ///
-    /// Set the base directory of the notes set.
-    ///
-    #[inline]
-    pub(crate) fn set_base_path(&mut self, path: &Path) {
-        self.vault_config.base_path = Some(PathBuf::from(path));
-    }
-
-    ///
-    /// Get the Astronomy Picture of the Day directory of the notes set.
-    ///
-    #[inline]
-    pub fn apod_path(&self) -> Option<Cow<Path>> {
-        if let Some(ref path_buf) = self.apod_config.path {
-            Some(Cow::Borrowed(path_buf.as_path()))
-        } else {
-            self.base_path()
-        }
-    }
-
-    ///
-    /// Set the Astronomy Picture of the Day directory of the notes set.
-    ///
-    #[inline]
-    pub(crate) fn set_apod_path(&mut self, path: &Path) {
-        self.apod_config.path = Some(PathBuf::from(path));
-    }
-
-    ///
     /// Get the This Week in Rust directory of the notes set.
     ///
     #[inline]
@@ -542,119 +641,11 @@ impl Config {
     }
 
     ///
-    /// Set the This Week in Rust directory of the notes set.
-    ///
-    #[inline]
-    pub(crate) fn set_twir_path(&mut self, path: &Path) {
-        self.twir_config.path = Some(PathBuf::from(path));
-    }
-
-    ///
-    /// Get the NASA Astronomy Picture of the Day API Key.
-    ///
-    #[inline]
-    pub fn apod_key(&self) -> Option<&str> {
-        self.apod_config.key.as_deref()
-    }
-
-    ///
-    /// Set the NASA Astronomy Picture of the Day API Key.
-    ///
-    #[inline]
-    pub(crate) fn set_apod_key<S: ToString>(&mut self, value: S) {
-        self.apod_config.key = Some(value.to_string());
-    }
-
-    ///
-    /// Get the NASA Astronomy Picture of the Day note banner.
-    ///
-    #[inline]
-    pub fn apod_banner(&self) -> Option<&str> {
-        self.apod_config.banner.as_deref()
-    }
-
-    ///
-    /// Set the NASA Astronomy Picture of the Day note banner.
-    ///
-    #[inline]
-    pub(crate) fn set_apod_banner<S: ToString>(&mut self, value: S) {
-        self.apod_config.banner = Some(value.to_string())
-    }
-
-    ///
-    /// Get the NASA Astronomy Picture of the Day daily
-    /// link prefix.
-    ///
-    #[inline]
-    pub fn apod_prefix(&self) -> Option<&str> {
-        self.apod_config.prefix.as_deref()
-    }
-
-    ///
-    /// Set the NASA Astronomy Picture of the Day daily
-    /// link prefix.
-    ///
-    #[inline]
-    pub(crate) fn set_apod_prefix<S: ToString>(&mut self, value: S) {
-        self.apod_config.prefix = Some(value.to_string())
-    }
-
-    ///
-    /// Get the NASA Astronomy Picture of the Day daily
-    /// link marker.
-    ///
-    #[inline]
-    pub fn apod_marker(&self) -> Option<&str> {
-        self.apod_config.marker.as_deref()
-    }
-
-    ///
-    /// Set the NASA Astronomy Picture of the Day daily
-    /// link marker.
-    ///
-    #[inline]
-    pub(crate) fn set_apod_marker<S: ToString>(&mut self, value: S) {
-        self.apod_config.marker = Some(value.to_string())
-    }
-
-    ///
-    /// Get the NASA Astronomy Picture of the Day icon.
-    ///
-    #[inline]
-    pub fn apod_icon(&self) -> Option<&str> {
-        self.apod_config.icon.as_deref()
-    }
-
-    ///
-    /// Set the NASA Astronomy Picture of the Day icon.
-    ///
-    #[inline]
-    pub(crate) fn set_apod_icon<S: ToString>(&mut self, value: S) {
-        self.apod_config.icon = Some(value.to_string())
-    }
-
-    ///
-    /// Get the NASA Astronomy Picture of the Day API Version.
-    ///
-    #[inline]
-    pub fn apod_version(&self) -> apod::Version {
-        self.apod_config.version
-    }
-
-    ///
     /// Get This Week in Rust note banner.
     ///
     #[inline]
     pub fn twir_banner(&self) -> Option<&str> {
         self.twir_config.banner.as_deref()
-    }
-
-    ///
-    /// Set This Week in Rust note banner.
-    ///
-    #[inline]
-    pub(crate) fn set_twir_banner<S: ToString>(&mut self, value: S) {
-        self.twir_config.banner = Some(value.to_string())
     }
 
     ///
@@ -666,14 +657,6 @@ impl Config {
     }
 
     ///
-    /// Set This Week in Rust daily link prefix.
-    ///
-    #[inline]
-    pub(crate) fn set_twir_prefix<S: ToString>(&mut self, value: S) {
-        self.twir_config.prefix = Some(value.to_string())
-    }
-
-    ///
     /// Get This Week in Rust daily link marker.
     ///
     #[inline]
@@ -682,25 +665,10 @@ impl Config {
     }
 
     ///
-    /// Set This Week in Rust daily link marker.
-    ///
-    #[inline]
-    pub(crate) fn set_twir_marker<S: ToString>(&mut self, value: S) {
-        self.twir_config.marker = Some(value.to_string())
-    }
-
-    ///
     /// Get the This Week in Rust icon.
     ///
     #[inline]
     pub fn twir_icon(&self) -> Option<&str> {
         self.twir_config.icon.as_deref()
-    }
-
-    ///
-    /// Set the This Week in Rust icon.
-    ///
-    pub(crate) fn set_twir_icon<S: ToString>(&mut self, value: S) {
-        self.twir_config.icon = Some(value.to_string());
     }
 }
