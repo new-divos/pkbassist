@@ -485,7 +485,7 @@ impl Application {
     /// Repair the This Week in Rust issues.
     ///
     async fn repair_twir_issues(&self) -> Result<(), Error> {
-        let twir_path = self.config.twir_path().ok_or(Error::VaultRootIsAbsent)?;
+        let twir_path = self.config.twir().path()?;
 
         let re = Arc::new(Regex::new(r"^TWiR\s+(?P<number>\d+)$").unwrap());
         let errors = stream::iter(WalkDir::new(twir_path).into_iter())
@@ -503,14 +503,12 @@ impl Application {
             })
             .zip(stream::iter(repeat_with(|| re.clone())))
             .filter_map(|(e, re)| async move {
-                if let Some(twir_path) = self.config.twir_path() {
-                    if let Some(stem) = e.path().file_stem().and_then(OsStr::to_str) {
-                        if let Some(cap) = re.captures_iter(stem).next() {
-                            let number = &cap["number"];
-                            let new_path = twir_path.join(format!("ISS.TWiR.{number}-.md"));
-                            let number = number.parse::<i32>().ok()?;
-                            return Some((e, new_path, number));
-                        }
+                if let Some(stem) = e.path().file_stem().and_then(OsStr::to_str) {
+                    if let Some(cap) = re.captures_iter(stem).next() {
+                        let number = &cap["number"];
+                        let new_path = twir_path.join(format!("ISS.TWiR.{number}-.md"));
+                        let number = number.parse::<i32>().ok()?;
+                        return Some((e, new_path, number));
                     }
                 }
 
@@ -963,10 +961,10 @@ impl Application {
             format!("url: {}", note.url()),
         ];
 
-        if let Some(banner) = self.config.twir_banner() {
+        if let Some(banner) = self.config.twir().banner() {
             content.push(format!("banner: {banner}"));
         }
-        if let Some(icon) = self.config.twir_icon() {
+        if let Some(icon) = self.config.twir().icon() {
             content.push(format!("banner_icon: {icon}"));
         }
 
@@ -1014,12 +1012,12 @@ impl Application {
                 file.read_to_string(&mut buffer).await?;
             }
 
-            let link = if let Some(prefix) = self.config.twir_prefix() {
+            let link = if let Some(prefix) = self.config.twir().prefix() {
                 format!("{prefix} [[ISS.TWiR.{number}|This Week in Rust {number}]]")
             } else {
                 format!("[[ISS.TWiR.{number}|This Week in Rust {number}]]")
             };
-            let buffer = Self::modify_daily(buffer, link, self.config.twir_marker());
+            let buffer = Self::modify_daily(buffer, link, self.config.twir().marker());
 
             // Write updated content of the daily note.
             {
@@ -1041,9 +1039,7 @@ impl Application {
     async fn grab_twir(&self, issues: &twir::Issues, update_daily: bool) -> Result<(), Error> {
         let notes = Arc::new(twir::Notes::select().await?);
 
-        let twir_path = Arc::new(PathBuf::from(
-            self.config.twir_path().ok_or(Error::VaultRootIsAbsent)?,
-        ));
+        let twir_path = Arc::new(PathBuf::from(self.config.twir().path()?));
         tokio::fs::create_dir_all(twir_path.as_path()).await?;
 
         match issues {

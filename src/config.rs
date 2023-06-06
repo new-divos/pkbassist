@@ -1,5 +1,4 @@
 use std::{
-    borrow::Cow,
     path::{Path, PathBuf},
     string::ToString,
 };
@@ -241,21 +240,21 @@ impl APoDConfig {
 /// This Week in Rust notes configuration.
 ///
 #[derive(Debug, Serialize, Deserialize, Default, Clone)]
-pub(crate) struct TWiRConfig {
+pub struct TWiRConfig {
     ///
-    /// This Week in Rust download path.
+    /// The This Week in Rust download path.
     ///
     #[serde(rename = "Path", skip_serializing_if = "Option::is_none")]
     path: Option<PathBuf>,
 
     ///
-    /// This Week in Rust note banner.
+    /// The This Week in Rust note banner.
     ///
     #[serde(rename = "Banner", skip_serializing_if = "Option::is_none")]
     banner: Option<String>,
 
     ///
-    /// This Week in Rust daily link prefix.
+    /// The This Week in Rust daily link prefix.
     ///
     #[serde(rename = "Prefix", skip_serializing_if = "Option::is_none")]
     prefix: Option<String>,
@@ -272,6 +271,61 @@ pub(crate) struct TWiRConfig {
     ///
     #[serde(rename = "Icon", skip_serializing_if = "Option::is_none")]
     icon: Option<String>,
+}
+
+impl TWiRConfig {
+    // The property name for the This Week in Rust download path.
+    const PATH_PROPERTY: &'static str = "twir.path";
+    // The property name for the This Week in Rust note banner.
+    const BANNER_PROPERTY: &'static str = "twir.banner";
+    // The property name for the This Week in Rust link prefix.
+    const PREFIX_PROPERTY: &'static str = "twir.prefix";
+    // The property name for the This Week in Rust daily link marker.
+    const MARKER_PROPERTY: &'static str = "twir.marker";
+    // The property name for the This Week in Rust icon.
+    const ICON_PROPERTY: &'static str = "twir.icon";
+
+    ///
+    /// Get the This Week in Rust download path.
+    ///
+    #[inline]
+    pub fn path(&self) -> Result<&Path, Error> {
+        self.path
+            .as_deref()
+            .ok_or(Error::ConfigPropertyIsAbsent(Self::PATH_PROPERTY))
+    }
+
+    ///
+    /// Get the This Week in Rust note banner.
+    ///
+    #[inline]
+    pub fn banner(&self) -> Option<&str> {
+        self.banner.as_deref()
+    }
+
+    ///
+    /// Get the This Week in Rust link prefix.
+    ///
+    #[inline]
+    pub fn prefix(&self) -> Option<&str> {
+        self.prefix.as_deref()
+    }
+
+    ///
+    /// Get the This Week in Rust link marker.
+    ///
+    #[inline]
+    pub fn marker(&self) -> Option<&str> {
+        self.marker.as_deref()
+    }
+
+    ///
+    /// Get the This Week in Rust icon.
+    ///
+    #[inline]
+    pub fn icon(&self) -> Option<&str> {
+        self.icon.as_deref()
+    }
 }
 
 ///
@@ -499,6 +553,22 @@ impl Config {
     }
 
     ///
+    /// Get the configuration file name.
+    ///
+    #[inline]
+    pub fn config_file(&self) -> &Path {
+        self.config_file.as_path()
+    }
+
+    ///
+    /// Get the logging file name.
+    ///
+    #[inline]
+    pub fn log_file(&self) -> &Path {
+        self.log_file.as_path()
+    }
+
+    ///
     /// Get the vault configuration.
     ///
     #[inline]
@@ -512,6 +582,14 @@ impl Config {
     #[inline]
     pub fn apod(&self) -> &APoDConfig {
         &self.apod_config
+    }
+
+    ///
+    /// Get the This Week in Rust configuration.
+    ///
+    #[inline]
+    pub fn twir(&self) -> &TWiRConfig {
+        &self.twir_config
     }
 
     ///
@@ -587,6 +665,26 @@ impl Config {
                 self.apod_config.icon = Some(value.to_string());
             }
 
+            TWiRConfig::PATH_PROPERTY => {
+                self.twir_config.path = Some(PathBuf::from(value));
+            }
+
+            TWiRConfig::BANNER_PROPERTY => {
+                self.twir_config.banner = Some(value.to_string());
+            }
+
+            TWiRConfig::PREFIX_PROPERTY => {
+                self.twir_config.prefix = Some(value.to_string());
+            }
+
+            TWiRConfig::MARKER_PROPERTY => {
+                self.twir_config.marker = Some(value.to_string());
+            }
+
+            TWiRConfig::ICON_PROPERTY => {
+                self.twir_config.icon = Some(value.to_string());
+            }
+
             RaindropConfig::PATH_PROPERTY => {
                 self.raindrop_config.path = Some(PathBuf::from(value));
             }
@@ -607,68 +705,5 @@ impl Config {
         }
 
         Ok(())
-    }
-
-    ///
-    /// Get the configuration file name.
-    ///
-    #[inline]
-    pub fn config_file(&self) -> &Path {
-        self.config_file.as_path()
-    }
-
-    ///
-    /// Get the logging file name.
-    ///
-    #[inline]
-    pub fn log_file(&self) -> &Path {
-        self.log_file.as_path()
-    }
-
-    ///
-    /// Get the This Week in Rust directory of the notes set.
-    ///
-    #[inline]
-    pub fn twir_path(&self) -> Option<Cow<Path>> {
-        if let Some(ref path_buf) = self.twir_config.path {
-            Some(Cow::Borrowed(path_buf.as_path()))
-        } else {
-            self.vault_config
-                .root
-                .as_ref()
-                .map(|path_buf| Cow::Owned(path_buf.join("Base")))
-        }
-    }
-
-    ///
-    /// Get This Week in Rust note banner.
-    ///
-    #[inline]
-    pub fn twir_banner(&self) -> Option<&str> {
-        self.twir_config.banner.as_deref()
-    }
-
-    ///
-    /// Get This Week in Rust daily link prefix.
-    ///
-    #[inline]
-    pub fn twir_prefix(&self) -> Option<&str> {
-        self.twir_config.prefix.as_deref()
-    }
-
-    ///
-    /// Get This Week in Rust daily link marker.
-    ///
-    #[inline]
-    pub fn twir_marker(&self) -> Option<&str> {
-        self.twir_config.marker.as_deref()
-    }
-
-    ///
-    /// Get the This Week in Rust icon.
-    ///
-    #[inline]
-    pub fn twir_icon(&self) -> Option<&str> {
-        self.twir_config.icon.as_deref()
     }
 }
