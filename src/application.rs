@@ -152,7 +152,8 @@ impl Application {
                 Note::APoD {
                     update_daily,
                     subtags,
-                } => self.grab_apod(*update_daily, subtags).await?,
+                    issue_date,
+                } => self.grab_apod(*update_daily, subtags, *issue_date).await?,
 
                 // Grab This Week in Rust note.
                 Note::TWiR {
@@ -760,9 +761,18 @@ impl Application {
         &self,
         update_daily: bool,
         subtags: &Option<Vec<String>>,
+        issue_date: Option<NaiveDate>,
     ) -> Result<(), Error> {
         let nasa_key = self.config.apod().api_key()?;
-        let url = format!("https://api.nasa.gov/planetary/apod?api_key={nasa_key}");
+        let url = if let Some(issue_date) = issue_date {
+            format!(
+                "https://api.nasa.gov/planetary/apod?api_key={}&date={}",
+                nasa_key,
+                issue_date.format("%Y-%m-%d")
+            )
+        } else {
+            format!("https://api.nasa.gov/planetary/apod?api_key={nasa_key}")
+        };
 
         let response = reqwest::get(url).await?.json::<apod::Info>().await?;
 

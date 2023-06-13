@@ -1,4 +1,4 @@
-use chrono::Datelike;
+use chrono::{Datelike, naive::NaiveDate};
 use clap::{ArgAction, Parser, Subcommand};
 
 use crate::application::{twir, Application};
@@ -161,6 +161,12 @@ pub enum Note {
         /// 
         #[arg(short = 't', long = "subtag", required = false)]
         subtags: Option<Vec<String>>,
+
+        ///
+        /// Date of the Issue.
+        /// 
+        #[arg(long = "date", required = false)]
+        issue_date: Option<NaiveDate>,
     },
 
     #[command(name = "twir")]
