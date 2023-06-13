@@ -1464,8 +1464,7 @@ impl Application {
     async fn configure(&self, key: &str, value: &str) -> Result<(), Error> {
         let mut config = self.config.clone();
         config.set(key, value)?;
-        config.save().await?;
-        Ok(())
+        config.save().await
     }
 
     ///
