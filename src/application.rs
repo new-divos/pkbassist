@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     ffi::OsStr,
     io::{self, Cursor},
     iter::repeat_with,
@@ -11,6 +11,7 @@ use std::{
 
 use chrono::{Datelike, NaiveDate};
 use futures::stream::{self, StreamExt};
+use handlebars::Handlebars;
 use prettytable::{row, Table};
 use regex::Regex;
 use tokio::{
@@ -763,6 +764,10 @@ impl Application {
         subtags: &Option<Vec<String>>,
         issue_date: Option<NaiveDate>,
     ) -> Result<(), Error> {
+        let templates_path = self.config.vault().templates_path()?;
+        let template_name = self.config.apod().template()?;
+        let template_path = templates_path.join(template_name);
+
         let nasa_key = self.config.apod().api_key()?;
         let url = if let Some(issue_date) = issue_date {
             format!(
@@ -860,51 +865,50 @@ impl Application {
             tags.insert(supertag);
         }
 
-        let mut content = vec![
-            "---\ntype: issue".to_string(),
-            format!("name: \"{}\"", response.title()),
-            "issue: APoD".to_string(),
-            format!("date: {date}"),
-            "tags:\n- issue/apod".to_string(),
-        ];
-
-        content.extend(tags.into_iter().map(|e| format!("- {e}")));
-        if let Some(banner) = self.config.apod().banner() {
-            content.push(format!("banner: {banner}"));
-        }
-        if let Some(icon) = self.config.apod().icon() {
-            content.push(format!("banner_icon: {icon}"));
+        // Read content of the template.
+        let mut template = String::new();
+        {
+            let mut file = File::open(template_path.as_path()).await?;
+            file.read_to_string(&mut template).await?;
         }
 
-        content.extend(
-            vec![
-                "---\n".to_string(),
-                if update_daily && daily_path.exists() && daily_path.is_file() {
-                    format!("[[{date}]]\n")
-                } else {
-                    if update_daily {
-                        log::warn!("Irrelevant daily path \"{}\"", daily_path.display());
-                    }
+        // Create the handlebars registry.
+        let mut reg = Handlebars::new();
 
-                    format!("{date}\n")
-                },
-                format!("# {}\n", response.title()),
-                format!("{media_ref}\n"),
-                format!("**Explanation:** {}\n", response.explanation()),
-            ]
-            .into_iter(),
+        // Register the template. The template string will be verified and compiled.
+        reg.register_template_string("apod", template)?;
+
+        // Prepare some data.
+        let mut data = BTreeMap::new();
+        data.insert(
+            "title".to_string(),
+            entry::TemplateEntry::Single(Some(response.title().to_string())),
+        );
+        data.insert(
+            "media_ref".to_string(),
+            entry::TemplateEntry::Single(Some(media_ref)),
+        );
+        data.insert("date".to_string(), entry::TemplateEntry::Single(Some(date)));
+        data.insert(
+            "explanation".to_string(),
+            entry::TemplateEntry::Single(Some(response.explanation().to_string())),
+        );
+        data.insert(
+            "copyright".to_string(),
+            entry::TemplateEntry::Single(response.copyright().map(|e| e.to_string())),
+        );
+        data.insert(
+            "tags".to_string(),
+            entry::TemplateEntry::Multiple(tags.into_iter().collect()),
         );
 
-        if let Some(copyright) = response.copyright() {
-            content.push(format!("*Image copyright:* {copyright}©\n"));
-        }
-
-        let content = content.join("\n");
+        // Render the template and save it to the file.
+        let buffer = reg.render("apod", &data)?;
         let note_path = apod_path.join(format!("ISS.APoD.{file_date}.md"));
         {
             let mut file = File::create(note_path.as_path()).await?;
-            file.write_all(content.as_bytes()).await?;
-            log::trace!(
+            file.write_all(buffer.as_bytes()).await?;
+            log::info!(
                 "The Astronomy Picture of the Day note \"{}\" has been created",
                 note_path.display()
             );

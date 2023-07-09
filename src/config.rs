@@ -122,6 +122,12 @@ pub struct APoDConfig {
     path: Option<PathBuf>,
 
     ///
+    /// The NASA Astronomy Picture of the Day template file name.
+    ///
+    #[serde(rename = "Template", skip_serializing_if = "Option::is_none")]
+    template: Option<String>,
+
+    ///
     /// The NASA Astronomy Picture of the Day API Key.
     ///
     #[serde(rename = "Key", skip_serializing_if = "Option::is_none")]
@@ -162,6 +168,8 @@ pub struct APoDConfig {
 impl APoDConfig {
     // The property name for the NASA Astronomy Picture of the Day download path.
     const PATH_PROPERTY: &'static str = "apod.path";
+    // The property name for the NASA Astronomy Picture of the Day template file name.
+    const TEMPLATE_PROPERTY: &'static str = "apod.template";
     // The property name for the NASA Astronomy Picture of the Day API Key.
     const APIKEY_PROPERTY: &'static str = "apod.key";
     // The property name for the NASA Astronomy Picture of the Day API Version.
@@ -183,6 +191,16 @@ impl APoDConfig {
         self.path
             .as_deref()
             .ok_or(Error::ConfigPropertyIsAbsent(Self::PATH_PROPERTY))
+    }
+
+    ///
+    /// Get the NASA Astronomy Picture of the Day template file name.
+    ///
+    #[inline]
+    pub fn template(&self) -> Result<&str, Error> {
+        self.template
+            .as_deref()
+            .ok_or(Error::ConfigPropertyIsAbsent(Self::TEMPLATE_PROPERTY))
     }
 
     ///
@@ -638,6 +656,10 @@ impl Config {
 
             APoDConfig::PATH_PROPERTY => {
                 self.apod_config.path = Some(PathBuf::from(value));
+            }
+
+            APoDConfig::TEMPLATE_PROPERTY => {
+                self.apod_config.template = Some(value.to_string());
             }
 
             APoDConfig::APIKEY_PROPERTY => {

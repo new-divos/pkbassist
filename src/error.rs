@@ -85,9 +85,29 @@ pub enum Error {
     #[error("set logger error {0}")]
     SetLoggerError(#[from] log::SetLoggerError),
 
+    #[error("template rendering error")]
+    RenderError,
+
+    #[error("template parsing error")]
+    TemplateError,
+
     #[error("YAML scanning error {0}")]
     YamlScanError(#[from] yaml_rust::ScanError),
 
     #[error("YAML emit error {0}")]
     YamlEmitError(#[from] yaml_rust::EmitError),
+}
+
+impl From<handlebars::RenderError> for Error {
+    #[inline]
+    fn from(_: handlebars::RenderError) -> Self {
+        Self::RenderError
+    }
+}
+
+impl From<handlebars::TemplateError> for Error {
+    #[inline]
+    fn from(_: handlebars::TemplateError) -> Self {
+        Self::TemplateError
+    }
 }
