@@ -1,5 +1,5 @@
 [package]
-name = "nta"
+name = "pkbassist"
 version = "0.1.4"
 edition = "2021"
 authors = ["Roman A. Voronkin"]

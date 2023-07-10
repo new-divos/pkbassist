@@ -1,6 +1,6 @@
 use clap::Parser;
 
-use nta::{application::Application, cli::Arguments, config::Config, error::Error};
+use pkbassist::{application::Application, cli::Arguments, config::Config, error::Error};
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
