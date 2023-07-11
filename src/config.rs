@@ -111,9 +111,15 @@ impl VaultConfig {
     }
 }
 
+///
+/// The templates descriptor.
+///
 pub trait TemplatesDescriptor {
+    // The property name for the note file name template.
     const TEMPLATES_FILENAME_PROPERTY: &'static str;
+    // The property name for the note content template.
     const TEMPLATES_CONTENT_PROPERTY: &'static str;
+    // The property name for the note daily link template.
     const TEMPLATES_DAILYREF_PROPERTY: &'static str;
 }
 
@@ -143,7 +149,7 @@ pub struct TemplatesConfig<T: TemplatesDescriptor> {
     ///
     /// The templates descriptor.
     ///
-    #[serde(skip_serializing)]
+    #[serde(default, skip_serializing, skip_deserializing)]
     descriptor: PhantomData<T>,
 }
 
