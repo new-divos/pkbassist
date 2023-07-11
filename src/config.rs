@@ -1,4 +1,5 @@
 use std::{
+    marker::PhantomData,
     path::{Path, PathBuf},
     string::ToString,
 };
@@ -110,6 +111,74 @@ impl VaultConfig {
     }
 }
 
+pub trait TemplatesDescriptor {
+    const TEMPLATES_FILENAME_PROPERTY: &'static str;
+    const TEMPLATES_CONTENT_PROPERTY: &'static str;
+    const TEMPLATES_DAILYREF_PROPERTY: &'static str;
+}
+
+///
+/// The templates configuration.
+///
+#[derive(Debug, Serialize, Deserialize, Default, Clone)]
+pub struct TemplatesConfig<T: TemplatesDescriptor> {
+    ///
+    /// The note file name template.
+    ///
+    #[serde(rename = "FileName")]
+    filename: String,
+
+    ///
+    /// The note content template name.
+    ///
+    #[serde(rename = "Content", skip_serializing_if = "Option::is_none")]
+    content: Option<String>,
+
+    ///
+    /// The daily reference to the note template name.
+    ///
+    #[serde(rename = "DailyRef", skip_serializing_if = "Option::is_none")]
+    dailyref: Option<String>,
+
+    ///
+    /// The templates descriptor.
+    ///
+    #[serde(skip_serializing)]
+    descriptor: PhantomData<T>,
+}
+
+impl<T: TemplatesDescriptor> TemplatesConfig<T> {
+    ///
+    /// Get the note file name template.
+    ///
+    #[inline]
+    pub fn filename(&self) -> &str {
+        self.filename.as_str()
+    }
+
+    ///
+    /// Get the note content template name.
+    ///
+    #[inline]
+    pub fn content(&self) -> Result<&str, Error> {
+        self.content
+            .as_deref()
+            .ok_or(Error::ConfigPropertyIsAbsent(T::TEMPLATES_CONTENT_PROPERTY))
+    }
+
+    ///
+    /// Get the daily reference to the note template name.
+    ///
+    #[inline]
+    pub fn dailyref(&self) -> Result<&str, Error> {
+        self.dailyref
+            .as_deref()
+            .ok_or(Error::ConfigPropertyIsAbsent(
+                T::TEMPLATES_DAILYREF_PROPERTY,
+            ))
+    }
+}
+
 ///
 /// The NASA Astronomy Picture of the Day notes configuration.
 ///
@@ -163,6 +232,21 @@ pub struct APoDConfig {
     ///
     #[serde(rename = "Icon", skip_serializing_if = "Option::is_none")]
     icon: Option<String>,
+
+    ///
+    /// The NASA Astronomy Picture of the Day templates.
+    ///
+    #[serde(rename = "Templates")]
+    templates: TemplatesConfig<Self>,
+}
+
+impl TemplatesDescriptor for APoDConfig {
+    // The property name for the NASA Astronomy Picture of the Day file name template.
+    const TEMPLATES_FILENAME_PROPERTY: &'static str = "apod.templates.filename";
+    // The property name for the NASA Astronomy Picture of the Day content template.
+    const TEMPLATES_CONTENT_PROPERTY: &'static str = "apod.templates.content";
+    // The property name for the NASA Astronomy Picture of the Day daily link template.
+    const TEMPLATES_DAILYREF_PROPERTY: &'static str = "apod.templates.dailyref";
 }
 
 impl APoDConfig {
@@ -251,6 +335,14 @@ impl APoDConfig {
     #[inline]
     pub fn icon(&self) -> Option<&str> {
         self.icon.as_deref()
+    }
+
+    ///
+    /// Get the NASA Astronomy Picture of the Day templates.
+    ///
+    #[inline]
+    pub fn templates(&self) -> &TemplatesConfig<Self> {
+        &self.templates
     }
 }
 
@@ -499,13 +591,13 @@ impl Config {
         if !project_dirs.config_dir().exists() {
             fs::create_dir_all(project_dirs.config_dir()).await?;
         }
-        let config_file = project_dirs.config_dir().join("nta.toml");
+        let config_file = project_dirs.config_dir().join("pkbassist.toml");
 
         let log_path = project_dirs.data_local_dir().join("log");
         if !log_path.exists() {
             fs::create_dir_all(log_path.as_path()).await?;
         }
-        let log_file = log_path.join("nta.log");
+        let log_file = log_path.join("pkbassist.log");
 
         Ok(Self {
             config_file,
@@ -685,6 +777,18 @@ impl Config {
 
             APoDConfig::ICON_PROPERTY => {
                 self.apod_config.icon = Some(value.to_string());
+            }
+
+            APoDConfig::TEMPLATES_FILENAME_PROPERTY => {
+                self.apod_config.templates.filename = value.to_string();
+            }
+
+            APoDConfig::TEMPLATES_CONTENT_PROPERTY => {
+                self.apod_config.templates.content = Some(value.to_string());
+            }
+
+            APoDConfig::TEMPLATES_DAILYREF_PROPERTY => {
+                self.apod_config.templates.dailyref = Some(value.to_string());
             }
 
             TWiRConfig::PATH_PROPERTY => {

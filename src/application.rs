@@ -44,8 +44,8 @@ pub struct Application {
 impl Application {
     pub(crate) const QUALIFIER: &'static str = "ru";
     pub(crate) const AUTHOR: &'static str = "new-divos";
-    pub(crate) const NAME: &'static str = "nta";
-    pub(crate) const DESCRIPTION: &'static str = "A Very simple Notes Attendant";
+    pub(crate) const NAME: &'static str = "pkbassist";
+    pub(crate) const DESCRIPTION: &'static str = "The personal knowledge base assistant";
 
     ///
     /// Create command line application with configuration.
