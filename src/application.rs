@@ -765,7 +765,7 @@ impl Application {
         issue_date: Option<NaiveDate>,
     ) -> Result<(), Error> {
         let templates_path = self.config.vault().templates_path()?;
-        let template_name = self.config.apod().template()?;
+        let template_name = self.config.apod().templates().content()?;
         let template_path = templates_path.join(template_name);
 
         let nasa_key = self.config.apod().api_key()?;
