@@ -119,8 +119,10 @@ pub trait TemplatesDescriptor {
     const TEMPLATES_FILENAME_PROPERTY: &'static str;
     // The property name for the note content template.
     const TEMPLATES_CONTENT_PROPERTY: &'static str;
+    // The property name for the daily note marker.
+    const TEMPLATES_DAILYMARKER_PROPERTY: &'static str;
     // The property name for the note daily link template.
-    const TEMPLATES_DAILYREF_PROPERTY: &'static str;
+    const TEMPLATES_DAILYLINK_PROPERTY: &'static str;
 }
 
 ///
@@ -141,10 +143,16 @@ pub struct TemplatesConfig<T: TemplatesDescriptor> {
     content: Option<String>,
 
     ///
-    /// The daily reference to the note template name.
+    /// The daily marker to the note template name.
     ///
-    #[serde(rename = "DailyRef", skip_serializing_if = "Option::is_none")]
-    dailyref: Option<String>,
+    #[serde(rename = "DailyMarker", skip_serializing_if = "Option::is_none")]
+    daily_marker: Option<String>,
+
+    ///
+    /// The daily link to the note template name.
+    ///
+    #[serde(rename = "DailyLink", skip_serializing_if = "Option::is_none")]
+    daily_link: Option<String>,
 
     ///
     /// The templates descriptor.
@@ -173,14 +181,22 @@ impl<T: TemplatesDescriptor> TemplatesConfig<T> {
     }
 
     ///
-    /// Get the daily reference to the note template name.
+    /// Get the daily marker to the note template name.
     ///
     #[inline]
-    pub fn dailyref(&self) -> Result<&str, Error> {
-        self.dailyref
+    pub fn daily_marker(&self) -> Option<&str> {
+        self.daily_marker.as_deref()
+    }
+
+    ///
+    /// Get the daily link to the note template name.
+    ///
+    #[inline]
+    pub fn daily_link(&self) -> Result<&str, Error> {
+        self.daily_link
             .as_deref()
             .ok_or(Error::ConfigPropertyIsAbsent(
-                T::TEMPLATES_DAILYREF_PROPERTY,
+                T::TEMPLATES_DAILYLINK_PROPERTY,
             ))
     }
 }
@@ -221,13 +237,6 @@ pub struct APoDConfig {
     prefix: Option<String>,
 
     ///
-    /// Insert the NASA Astronomy Picture of the Day daily link
-    /// after the following string.
-    ///
-    #[serde(rename = "Marker", skip_serializing_if = "Option::is_none")]
-    marker: Option<String>,
-
-    ///
     /// The NASA Astronomy Picture of the Day icon.
     ///
     #[serde(rename = "Icon", skip_serializing_if = "Option::is_none")]
@@ -245,8 +254,10 @@ impl TemplatesDescriptor for APoDConfig {
     const TEMPLATES_FILENAME_PROPERTY: &'static str = "apod.templates.filename";
     // The property name for the NASA Astronomy Picture of the Day content template.
     const TEMPLATES_CONTENT_PROPERTY: &'static str = "apod.templates.content";
+    // The property name for the NASA Astronomy Picture of the Day daily link marker.
+    const TEMPLATES_DAILYMARKER_PROPERTY: &'static str = "apod.templates.daily-marker";
     // The property name for the NASA Astronomy Picture of the Day daily link template.
-    const TEMPLATES_DAILYREF_PROPERTY: &'static str = "apod.templates.dailyref";
+    const TEMPLATES_DAILYLINK_PROPERTY: &'static str = "apod.templates.daily-link";
 }
 
 impl APoDConfig {
@@ -260,8 +271,6 @@ impl APoDConfig {
     const BANNER_PROPERTY: &'static str = "apod.banner";
     // The property name for the NASA Astronomy Picture of the Day daily link prefix.
     const PREFIX_PROPERTY: &'static str = "apod.prefix";
-    // The property name for the NASA Astronomy Picture of the Day daily link marker.
-    const MARKER_PROPERTY: &'static str = "apod.marker";
     // The property name for the NASA Astronomy Picture of the Day icon.
     const ICON_PROPERTY: &'static str = "apod.icon";
 
@@ -307,14 +316,6 @@ impl APoDConfig {
     #[inline]
     pub fn prefix(&self) -> Option<&str> {
         self.prefix.as_deref()
-    }
-
-    ///
-    /// Get the NASA Astronomy Picture of the Day daily link marker.
-    ///
-    #[inline]
-    pub fn marker(&self) -> Option<&str> {
-        self.marker.as_deref()
     }
 
     ///
@@ -755,10 +756,6 @@ impl Config {
                 self.apod_config.prefix = Some(value.to_string());
             }
 
-            APoDConfig::MARKER_PROPERTY => {
-                self.apod_config.marker = Some(value.to_string());
-            }
-
             APoDConfig::ICON_PROPERTY => {
                 self.apod_config.icon = Some(value.to_string());
             }
@@ -771,8 +768,12 @@ impl Config {
                 self.apod_config.templates.content = Some(value.to_string());
             }
 
-            APoDConfig::TEMPLATES_DAILYREF_PROPERTY => {
-                self.apod_config.templates.dailyref = Some(value.to_string());
+            APoDConfig::TEMPLATES_DAILYMARKER_PROPERTY => {
+                self.apod_config.templates.daily_marker = Some(value.to_string());
+            }
+
+            APoDConfig::TEMPLATES_DAILYLINK_PROPERTY => {
+                self.apod_config.templates.daily_link = Some(value.to_string());
             }
 
             TWiRConfig::PATH_PROPERTY => {

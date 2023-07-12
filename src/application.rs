@@ -11,7 +11,7 @@ use std::{
 
 use chrono::{Datelike, NaiveDate};
 use futures::stream::{self, StreamExt};
-use handlebars::Handlebars;
+use handlebars::{handlebars_helper, Handlebars};
 use prettytable::{row, Table};
 use regex::Regex;
 use tokio::{
@@ -32,6 +32,11 @@ pub(crate) mod apod;
 pub(crate) mod entry;
 pub(crate) mod meta;
 pub(crate) mod twir;
+
+// a helper formtars date using format string.
+handlebars_helper!(datefmt: |dt: str, {fmt: str = "%Y-%m-%d"}|
+    (NaiveDate::parse_from_str(dt, "%Y-%m-%d").unwrap()).format(fmt).to_string()
+);
 
 ///
 /// The command line application.
@@ -874,9 +879,11 @@ impl Application {
 
         // Create the handlebars registry.
         let mut reg = Handlebars::new();
+        reg.register_helper("datefmt", Box::new(datefmt));
 
-        // Register the template. The template string will be verified and compiled.
-        reg.register_template_string("apod", template)?;
+        // Register the templates. The template strings will be verified and compiled.
+        reg.register_template_string("apod.filename", self.config.apod().templates().filename())?;
+        reg.register_template_string("apod.content", template)?;
 
         // Prepare some data.
         let mut data = BTreeMap::new();
@@ -903,8 +910,8 @@ impl Application {
         );
 
         // Render the template and save it to the file.
-        let buffer = reg.render("apod", &data)?;
-        let note_path = apod_path.join(format!("ISS.APoD.{file_date}.md"));
+        let note_path = apod_path.join(reg.render("apod.filename", &data)?);
+        let buffer = reg.render("apod.content", &data)?;
         {
             let mut file = File::create(note_path.as_path()).await?;
             file.write_all(buffer.as_bytes()).await?;
@@ -928,7 +935,8 @@ impl Application {
             } else {
                 format!("[[ISS.APoD.{file_date}|Astronomy Picture of the Day]]")
             };
-            let buffer = Self::modify_daily(buffer, link, self.config.apod().marker());
+            let buffer =
+                Self::modify_daily(buffer, link, self.config.apod().templates().daily_marker());
 
             // Write updated content of the daily note.
             {
