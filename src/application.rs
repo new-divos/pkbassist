@@ -847,10 +847,6 @@ impl Application {
             }
         }
 
-        let date = response.date().format("%Y-%m-%d").to_string();
-        let file_date = response.date().format("%Y.%m.%d").to_string();
-        let daily_path = self.config.vault().daily_path()?.join(format!("{date}.md"));
-
         let supertag = "astronomy".to_string();
         let mut tags: HashSet<String> = HashSet::new();
         if let Some(subtags) = subtags {
@@ -870,7 +866,7 @@ impl Application {
             tags.insert(supertag);
         }
 
-        // Read content of the template.
+        // Read the content of the template.
         let mut template = String::new();
         {
             let mut file = File::open(template_path.as_path()).await?;
@@ -884,6 +880,9 @@ impl Application {
         // Register the templates. The template strings will be verified and compiled.
         reg.register_template_string("apod.filename", self.config.apod().templates().filename())?;
         reg.register_template_string("apod.content", template)?;
+
+        let date = response.date().format("%Y-%m-%d").to_string();
+        let daily_path = self.config.vault().daily_path()?.join(format!("{date}.md"));
 
         // Prepare some data.
         let mut data = BTreeMap::new();
@@ -922,6 +921,17 @@ impl Application {
         }
 
         if update_daily && daily_path.exists() && daily_path.is_file() {
+            let template_name = self.config.apod().templates().daily_link()?;
+            let template_path = templates_path.join(template_name);
+
+            // Read the content of the template.
+            let mut daily_link_template = String::new();
+            {
+                let mut file = File::open(template_path.as_path()).await?;
+                file.read_to_string(&mut daily_link_template).await?;
+            }
+            reg.register_template_string("apod.daily_link", daily_link_template)?;
+
             // Read content of the daily note.
             let mut buffer = String::new();
             {
@@ -929,12 +939,16 @@ impl Application {
                 file.read_to_string(&mut buffer).await?;
             }
 
-            let prefix = self.config.apod().prefix();
-            let link = if let Some(prefix) = prefix {
-                format!("{prefix} [[ISS.APoD.{file_date}|Astronomy Picture of the Day]]")
-            } else {
-                format!("[[ISS.APoD.{file_date}|Astronomy Picture of the Day]]")
-            };
+            // Update data with the link.
+            if let Some(stem) = note_path.file_stem().and_then(OsStr::to_str) {
+                data.insert(
+                    "link".to_string(),
+                    entry::TemplateEntry::Single(Some(format!(
+                        "[[{stem}|Astronomy Picture of the Day]]"
+                    ))),
+                );
+            }
+            let link = reg.render("apod.daily_link", &data)?;
             let buffer =
                 Self::modify_daily(buffer, link, self.config.apod().templates().daily_marker());
 
@@ -942,7 +956,7 @@ impl Application {
             {
                 let mut file = File::create(daily_path.as_path()).await?;
                 file.write_all(buffer.as_bytes()).await?;
-                log::trace!(
+                log::info!(
                     "The daily note \"{}\" has been updated",
                     daily_path.display()
                 );
