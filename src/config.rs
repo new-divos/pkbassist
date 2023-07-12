@@ -225,24 +225,6 @@ pub struct APoDConfig {
     version: apod::Version,
 
     ///
-    /// The NASA Astronomy Picture of the Day note banner.
-    ///
-    #[serde(rename = "Banner", skip_serializing_if = "Option::is_none")]
-    banner: Option<String>,
-
-    ///
-    /// The NASA Astronomy Picture of the Day daily link prefix.
-    ///
-    #[serde(rename = "Prefix", skip_serializing_if = "Option::is_none")]
-    prefix: Option<String>,
-
-    ///
-    /// The NASA Astronomy Picture of the Day icon.
-    ///
-    #[serde(rename = "Icon", skip_serializing_if = "Option::is_none")]
-    icon: Option<String>,
-
-    ///
     /// The NASA Astronomy Picture of the Day templates.
     ///
     #[serde(rename = "Templates")]
@@ -267,12 +249,6 @@ impl APoDConfig {
     const APIKEY_PROPERTY: &'static str = "apod.key";
     // The property name for the NASA Astronomy Picture of the Day API Version.
     const APIVERSION_PROPERTY: &'static str = "apod.version";
-    // The property name for the NASA Astronomy Picture of the Day note banner.
-    const BANNER_PROPERTY: &'static str = "apod.banner";
-    // The property name for the NASA Astronomy Picture of the Day daily link prefix.
-    const PREFIX_PROPERTY: &'static str = "apod.prefix";
-    // The property name for the NASA Astronomy Picture of the Day icon.
-    const ICON_PROPERTY: &'static str = "apod.icon";
 
     ///
     /// Get the NASA Astronomy Picture of the Day download path.
@@ -300,30 +276,6 @@ impl APoDConfig {
     #[inline]
     pub fn api_version(&self) -> apod::Version {
         self.version
-    }
-
-    ///
-    /// Get the NASA Astronomy Picture of the Day note banner.
-    ///
-    #[inline]
-    pub fn banner(&self) -> Option<&str> {
-        self.banner.as_deref()
-    }
-
-    ///
-    /// Get the NASA Astronomy Picture of the Day daily link prefix.
-    ///
-    #[inline]
-    pub fn prefix(&self) -> Option<&str> {
-        self.prefix.as_deref()
-    }
-
-    ///
-    /// Get the NASA Astronomy Picture of the Day icon.
-    ///
-    #[inline]
-    pub fn icon(&self) -> Option<&str> {
-        self.icon.as_deref()
     }
 
     ///
@@ -747,18 +699,6 @@ impl Config {
                 "v1" => self.apod_config.version = apod::Version::V1_0,
                 _ => return Err(Error::IllegalConfValue(value.to_string())),
             },
-
-            APoDConfig::BANNER_PROPERTY => {
-                self.apod_config.banner = Some(value.to_string());
-            }
-
-            APoDConfig::PREFIX_PROPERTY => {
-                self.apod_config.prefix = Some(value.to_string());
-            }
-
-            APoDConfig::ICON_PROPERTY => {
-                self.apod_config.icon = Some(value.to_string());
-            }
 
             APoDConfig::TEMPLATES_FILENAME_PROPERTY => {
                 self.apod_config.templates.filename = value.to_string();
